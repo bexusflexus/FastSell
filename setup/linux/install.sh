@@ -43,7 +43,7 @@ Debian/Ubuntu:
   https://docs.docker.com/engine/install/ubuntu/
 
 After installation, rerun:
-  bash deploy/linux/install.sh
+  bash setup/linux/install.sh
 GUIDANCE
 }
 

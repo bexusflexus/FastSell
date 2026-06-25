@@ -2,6 +2,15 @@
 
 FastSell has a Go backend and a React/TypeScript frontend.
 
+Use a full repository clone for development and contribution work. The setup bundle is for normal users who only need to install, update, uninstall, and run FastSell from prebuilt GHCR images.
+
+```bash
+git clone https://github.com/bexusflexus/FastSell.git
+cd FastSell
+```
+
+See `CONTRIBUTING.md` for branch creation, pull request, validation, and maintainer approval expectations.
+
 ## Backend
 
 ```bash
@@ -36,6 +45,16 @@ Use new numbered migrations for future schema changes. Do not edit the baseline 
 ## Local Files
 
 Image files are stored on disk, not in PostgreSQL. Local development data, `.env` files, build output, and dependency directories should stay untracked.
+
+## Setup Bundle
+
+The user-facing setup bundle is generated from the full repository:
+
+```bash
+bash scripts/setup/create-setup-bundle.sh v0.1.0
+```
+
+This writes `dist/fastsell-setup-v0.1.0.zip` and `dist/fastsell-setup-v0.1.0.tar.gz`. The generated `dist/` directory is ignored by Git.
 
 ## License
 

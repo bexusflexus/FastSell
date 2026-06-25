@@ -15,15 +15,32 @@ License: GPL-3.0-or-later.
 
 ## Quick Start
 
-Prerequisites: Linux host, Docker Engine, Docker Compose plugin, Git, and enough disk for PostgreSQL plus uploaded images.
+Prerequisites: Linux host, Docker Engine, Docker Compose plugin, Bash, and enough disk for PostgreSQL plus uploaded images.
+
+Normal users install from the FastSell setup bundle published with each GitHub Release. The setup bundle contains only the files needed to install, update, uninstall, and run FastSell from prebuilt GHCR images.
 
 ```bash
-git clone https://github.com/bexusflexus/FastSell.git
-cd FastSell
-bash deploy/linux/install.sh
+# Download fastsell-setup-v0.1.0.zip or fastsell-setup-v0.1.0.tar.gz
+# from https://github.com/bexusflexus/FastSell/releases
+unzip fastsell-setup-v0.1.0.zip
+# or: tar -xzf fastsell-setup-v0.1.0.tar.gz
+cd fastsell-setup-v0.1.0
+sudo bash setup/linux/install.sh
 ```
 
-The installer creates `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, applies the database baseline, and starts the stack.
+The installer creates `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, pulls prebuilt GHCR images, applies the database baseline, and starts the stack.
+
+Update from a newer setup bundle after taking a backup:
+
+```bash
+sudo bash setup/linux/update.sh
+```
+
+Uninstall:
+
+```bash
+sudo bash setup/linux/uninstall.sh
+```
 
 Default web URL:
 
@@ -43,6 +60,13 @@ http://localhost:8888
 - [Roadmap](docs/Roadmap.md)
 
 ## Development
+
+Developers and contributors should use a full repository clone instead of the setup bundle.
+
+```bash
+git clone https://github.com/bexusflexus/FastSell.git
+cd FastSell
+```
 
 API:
 

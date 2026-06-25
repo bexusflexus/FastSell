@@ -9,7 +9,8 @@ FastSell is intended for a self-hosted Linux machine on a trusted network.
 - 2 CPU cores
 - 2 GB RAM
 - 10 GB free disk, plus space for uploaded images and backups
-- Git and Bash for the provided deployment scripts
+- Bash for the provided setup scripts
+- Git only for development or contribution work from a full repository clone
 
 ## Recommended
 
