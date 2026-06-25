@@ -1,0 +1,102 @@
+name: fastsell
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fastsell-postgres
+    restart: unless-stopped
+    env_file:
+      - ${FASTSELL_ENV_FILE:-.env.example}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fastsell}
+      POSTGRES_USER: ${POSTGRES_USER:-fastsell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - /srv/fastsell/data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fastsell} -d ${POSTGRES_DB:-fastsell}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fastsell-net
+
+  migrate:
+    image: ${FASTSELL_MIGRATE_IMAGE:-migrate/migrate:v4.18.3}
+    profiles:
+      - tools
+    env_file:
+      - ${FASTSELL_ENV_FILE:-.env.example}
+    command: ["-path=/migrations", "-database", "${DATABASE_URL:-postgres://fastsell:change-me@postgres:5432/fastsell?sslmode=disable}", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - /srv/fastsell/db/migrations:/migrations:ro
+    networks:
+      - fastsell-net
+
+  fastsell-system-agent:
+    image: ${FASTSELL_SYSTEM_AGENT_IMAGE:-ghcr.io/bexusflexus/fastsell-system-agent:latest}
+    container_name: fastsell-system-agent
+    restart: unless-stopped
+    environment:
+      PORT: "8081"
+      DOCKER_SOCKET_PATH: /var/run/docker.sock
+      FASTSELL_DOCKER_EXPECTED_SERVICES: fastsell-web,fastsell-api,fastsell-postgres,fastsell-system-agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - fastsell-net
+
+  fastsell-api:
+    image: ${FASTSELL_API_IMAGE:-ghcr.io/bexusflexus/fastsell-api:latest}
+    container_name: fastsell-api
+    restart: unless-stopped
+    env_file:
+      - ${FASTSELL_ENV_FILE:-.env.example}
+    environment:
+      PORT: "8888"
+      FRONTEND_HOSTING_MODE: ${FRONTEND_HOSTING_MODE:-nginx}
+      FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:8888}
+      SYSTEM_AGENT_URL: ${SYSTEM_AGENT_URL:-http://fastsell-system-agent:8081}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fastsell-system-agent:
+        condition: service_started
+    volumes:
+      - /srv/fastsell/data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8888/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fastsell-net
+
+  fastsell-web:
+    image: ${FASTSELL_WEB_IMAGE:-ghcr.io/bexusflexus/fastsell-web:latest}
+    container_name: fastsell-web
+    restart: unless-stopped
+    depends_on:
+      fastsell-api:
+        condition: service_started
+    volumes:
+      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${FASTSELL_HTTP_PORT:-8888}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fastsell-net
+
+networks:
+  fastsell-net:
+    name: fastsell-net
+    driver: bridge

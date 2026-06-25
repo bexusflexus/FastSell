@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS whole_scene_candidate_crops;
+DROP TABLE IF EXISTS whole_scene_candidate_appearances;
+DROP TABLE IF EXISTS whole_scene_candidates;
+DROP TABLE IF EXISTS whole_scene_analysis_runs;
+DROP TABLE IF EXISTS whole_scene_scan_images;
+DROP TABLE IF EXISTS whole_scene_scans;
+DROP TABLE IF EXISTS sale_listing_drafts;
+DROP TABLE IF EXISTS sell_provider_configs;
+DROP TABLE IF EXISTS image_assets;
+DROP TABLE IF EXISTS upload_groups;
+DROP TABLE IF EXISTS ai_provider_configs;
+DROP TABLE IF EXISTS upload_sessions;
+DROP TABLE IF EXISTS item_disposition_history;
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS containers;
+DROP TABLE IF EXISTS container_types;
+DROP TABLE IF EXISTS locations;
+DROP TABLE IF EXISTS item_dispositions;
+DROP TABLE IF EXISTS inventory_groups;
+
+DROP EXTENSION IF EXISTS pg_trgm;
+DROP EXTENSION IF EXISTS pgcrypto;
