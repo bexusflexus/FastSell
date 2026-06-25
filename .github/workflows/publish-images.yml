@@ -1,4 +1,4 @@
-name: Publish Container Images
+name: Publish Images
 
 on:
   workflow_dispatch:
@@ -6,8 +6,8 @@ on:
     branches:
       - main
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: read
@@ -19,22 +19,19 @@ concurrency:
 
 jobs:
   publish:
-    name: Build and publish ${{ matrix.name }}
+    name: Publish ${{ matrix.component }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: API
-            image: ghcr.io/bexusflexus/fastsell-api
+          - component: api
             context: ./api
             file: ./api/Dockerfile
-          - name: system-agent
-            image: ghcr.io/bexusflexus/fastsell-system-agent
+          - component: system-agent
             context: ./api
             file: ./api/Dockerfile.system-agent
-          - name: web
-            image: ghcr.io/bexusflexus/fastsell-web
+          - component: web
             context: .
             file: ./docker/web.Dockerfile
 
@@ -52,24 +49,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate metadata
+      - name: Prepare tags
         id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ matrix.image }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=long,prefix=sha-
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/fastsell"
+          component="${{ matrix.component }}"
+          tags="${image}:${component}-sha-${GITHUB_SHA}"
 
-      - name: Build and publish
+          if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
+            branch="${GITHUB_REF_NAME//\//-}"
+            tags="${tags}"$'\n'"${image}:${component}-${branch}"
+            if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+              tags="${tags}"$'\n'"${image}:${component}-latest"
+            fi
+          fi
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tags="${tags}"$'\n'"${image}:${component}-${GITHUB_REF_NAME}"
+          fi
+
+          {
+            echo "image=${image}"
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: false
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=FastSell ${{ matrix.component }}

@@ -70,10 +70,10 @@ compose_down() {
 
 remove_known_docker_artifacts() {
     "${DOCKER_CMD[@]}" rm -f \
-        fastsell-web \
-        fastsell-api \
-        fastsell-system-agent \
-        fastsell-postgres \
+        fastsell_web \
+        fastsell_api \
+        fastsell_system_agent \
+        fastsell_postgres \
         >/dev/null 2>&1 || true
 
     "${DOCKER_CMD[@]}" network rm fastsell-net >/dev/null 2>&1 || true

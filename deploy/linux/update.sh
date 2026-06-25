@@ -130,7 +130,7 @@ copy_release_files() {
 
 pull_images() {
     echo "[OK] Pulling updated FastSell images"
-    compose --profile tools pull migrate fastsell-system-agent fastsell-api fastsell-web
+    compose --profile tools pull migrate system-agent api web
 }
 
 apply_migrations() {

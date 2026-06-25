@@ -42,6 +42,8 @@ bash deploy/linux/update.sh
 
 The updater refreshes release files, pulls configured images, runs migrations, restarts services, and checks `/health` and `/health/db`.
 
+Default images come from one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component tags: `api-latest`, `system-agent-latest`, and `web-latest`.
+
 ## Uninstall
 
 ```bash

@@ -117,7 +117,7 @@ func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	t.Setenv("DATA_ROOT", "/tmp/data")
 	t.Setenv("FRONTEND_HOSTING_MODE", "nginx")
 	t.Setenv("FRONTEND_PUBLIC_URL", "http://localhost:8888")
-	t.Setenv("SYSTEM_AGENT_URL", "http://fastsell-system-agent:8081")
+	t.Setenv("SYSTEM_AGENT_URL", "http://system-agent:8081")
 	t.Setenv("LISTING_PHOTO_EXPORT_ROOT", "/tmp/exports")
 	t.Setenv("LISTING_PHOTO_EXPORT_HOST_ROOT", "/srv/fastsell/data/exports/listing-photos")
 	t.Setenv("LISTING_PHOTO_EXPORT_TTL_HOURS", "36")
@@ -149,7 +149,7 @@ func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	if cfg.FrontendPublicURL != "http://localhost:8888" {
 		t.Fatalf("expected frontend public URL from environment, got %q", cfg.FrontendPublicURL)
 	}
-	if cfg.SystemAgentURL != "http://fastsell-system-agent:8081" {
+	if cfg.SystemAgentURL != "http://system-agent:8081" {
 		t.Fatalf("expected system agent URL from environment, got %q", cfg.SystemAgentURL)
 	}
 	if cfg.ListingPhotoExportRoot != "/tmp/exports" {

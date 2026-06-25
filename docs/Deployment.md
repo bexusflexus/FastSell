@@ -8,9 +8,9 @@ FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
 - `postgres`
 - `migrate`
-- `fastsell-api`
-- `fastsell-system-agent`
-- `fastsell-web`
+- `api`
+- `system-agent`
+- `web`
 
 Runtime files live under `/srv/fastsell`:
 
@@ -24,13 +24,19 @@ Runtime files live under `/srv/fastsell`:
 
 ## Images
 
-The GitHub Actions workflow publishes these GHCR images:
+The GitHub Actions workflow publishes one GHCR package:
 
-- `ghcr.io/bexusflexus/fastsell-api`
-- `ghcr.io/bexusflexus/fastsell-system-agent`
-- `ghcr.io/bexusflexus/fastsell-web`
+- `ghcr.io/bexusflexus/fastsell`
 
-Tags are published for `main`, semantic version tags, and commit SHA tags.
+Components are separated by tags:
+
+- `api-latest`
+- `system-agent-latest`
+- `web-latest`
+
+The publish workflow also emits component-prefixed branch, SHA, and version tags such as `api-main`, `api-sha-<sha>`, `api-v0.1.0`, `system-agent-main`, and `web-v0.1.0`.
+
+If GHCR push fails with `permission_denied: write_package`, confirm repository Actions workflow permissions are set to Read and write permissions, and confirm the workflow uses `GITHUB_TOKEN` with `packages: write`.
 
 ## Configuration
 
@@ -55,9 +61,9 @@ sudo docker compose --env-file /srv/fastsell/config/.env \
 View logs:
 
 ```bash
-sudo docker logs fastsell-api
-sudo docker logs fastsell-web
-sudo docker logs fastsell-postgres
+sudo docker logs fastsell_api
+sudo docker logs fastsell_web
+sudo docker logs fastsell_postgres
 ```
 
 Apply migrations manually:

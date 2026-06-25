@@ -10,7 +10,7 @@ MIGRATIONS_DIR="${ROOT}/db/migrations"
 NGINX_DIR="${CONFIG_DIR}/nginx"
 PROJECT_NAME="fastsell"
 DEFAULT_HTTP_PORT="8888"
-DEFAULT_API_IMAGE="ghcr.io/bexusflexus/fastsell-api:latest"
+DEFAULT_API_IMAGE="ghcr.io/bexusflexus/fastsell:api-latest"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
@@ -141,7 +141,7 @@ ITEM_IMAGE_MAX_COUNT=50
 
 FRONTEND_HOSTING_MODE=nginx
 FRONTEND_PUBLIC_URL=${FASTSELL_PUBLIC_URL:-http://localhost:${FASTSELL_HTTP_PORT:-${DEFAULT_HTTP_PORT}}}
-SYSTEM_AGENT_URL=http://fastsell-system-agent:8081
+SYSTEM_AGENT_URL=http://system-agent:8081
 
 LISTING_PHOTO_EXPORT_ROOT=/app/data/exports/listing-photos
 LISTING_PHOTO_EXPORT_HOST_ROOT=/srv/fastsell/data/exports/listing-photos
@@ -149,9 +149,9 @@ LISTING_PHOTO_EXPORT_TTL_HOURS=24
 
 FASTSELL_ENV_FILE=/srv/fastsell/config/.env
 FASTSELL_HTTP_PORT=${FASTSELL_HTTP_PORT:-${DEFAULT_HTTP_PORT}}
-FASTSELL_API_IMAGE=${FASTSELL_API_IMAGE:-ghcr.io/bexusflexus/fastsell-api:latest}
-FASTSELL_SYSTEM_AGENT_IMAGE=${FASTSELL_SYSTEM_AGENT_IMAGE:-ghcr.io/bexusflexus/fastsell-system-agent:latest}
-FASTSELL_WEB_IMAGE=${FASTSELL_WEB_IMAGE:-ghcr.io/bexusflexus/fastsell-web:latest}
+FASTSELL_API_IMAGE=${FASTSELL_API_IMAGE:-ghcr.io/bexusflexus/fastsell:api-latest}
+FASTSELL_SYSTEM_AGENT_IMAGE=${FASTSELL_SYSTEM_AGENT_IMAGE:-ghcr.io/bexusflexus/fastsell:system-agent-latest}
+FASTSELL_WEB_IMAGE=${FASTSELL_WEB_IMAGE:-ghcr.io/bexusflexus/fastsell:web-latest}
 FASTSELL_MIGRATE_IMAGE=${FASTSELL_MIGRATE_IMAGE:-migrate/migrate:v4.18.3}
 ENV
 

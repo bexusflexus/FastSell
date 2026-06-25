@@ -7,10 +7,9 @@ FastSell has a Go backend and a React/TypeScript frontend.
 ```bash
 cd api
 go test ./...
-go run ./cmd/fastsell-api
 ```
 
-The API requires `DATABASE_URL`. For local development, run PostgreSQL through Docker Compose or another local PostgreSQL instance and apply migrations from `db/migrations`.
+The API requires `DATABASE_URL` when run locally. Use PostgreSQL through Docker Compose or another local PostgreSQL instance and apply migrations from `db/migrations`.
 
 ## Frontend
 

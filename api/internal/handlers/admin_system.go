@@ -85,7 +85,7 @@ func (s *AdminSystemStore) Get(ctx context.Context) (models.AdminSystemHealthRes
 			Status:      models.SystemStatusOK,
 			HostingMode: "nginx",
 			PublicURL:   s.cfg.FrontendPublicURL,
-			Message:     "Frontend is expected to be served by fastsell-web nginx.",
+			Message:     "Frontend is expected to be served by the web nginx container.",
 		}
 	}
 	overall := deriveOverallStatus(apiHealth.Status, databaseHealth.Status, storageHealth.Status, pathsHealth.Status)
@@ -382,7 +382,7 @@ func (s *AdminSystemStore) buildDockerHealth(ctx context.Context) models.SystemD
 	}
 
 	if health.Message == "" {
-		health.Message = "Docker service health was returned by fastsell-system-agent."
+		health.Message = "Docker service health was returned by the system-agent container."
 	}
 	return health
 }

@@ -94,7 +94,7 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(models.SystemDockerHealth{
 				Status:  models.SystemStatusUnknown,
-				Message: "Docker query failed inside fastsell-system-agent.",
+				Message: "Docker query failed inside system-agent.",
 				Alerts: []models.SystemHealthAlert{{
 					Severity: models.SystemStatusWarning,
 					Area:     "docker",
@@ -128,17 +128,17 @@ func main() {
 
 	select {
 	case sig := <-stopCh:
-		log.Printf("fastsell-system-agent shutdown signal received: %s", sig)
+		log.Printf("system-agent shutdown signal received: %s", sig)
 	case err := <-errCh:
 		if !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("fastsell-system-agent failed: %v", err)
+			log.Fatalf("system-agent failed: %v", err)
 		}
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("fastsell-system-agent shutdown failed: %v", err)
+		log.Printf("system-agent shutdown failed: %v", err)
 	}
 }
 
@@ -155,7 +155,7 @@ func loadAgentConfig() agentConfig {
 
 	expectedRaw := strings.TrimSpace(os.Getenv("FASTSELL_DOCKER_EXPECTED_SERVICES"))
 	if expectedRaw == "" {
-		expectedRaw = "fastsell-web,fastsell-api,postgres,fastsell-system-agent"
+		expectedRaw = "web,api,postgres,system-agent"
 	}
 
 	parts := strings.Split(expectedRaw, ",")
@@ -263,7 +263,7 @@ func evaluateDockerHealth(expectedServices []string, servicesByName map[string]m
 	})
 
 	now := time.Now().UTC()
-	message := "Docker service health was read from fastsell-system-agent."
+	message := "Docker service health was read from system-agent."
 	if overall == models.SystemStatusFailed {
 		message = "One or more critical Docker services are failed or missing."
 	} else if overall == models.SystemStatusWarning {
