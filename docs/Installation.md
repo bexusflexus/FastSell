@@ -38,10 +38,13 @@ The installer:
 
 - Creates `/srv/fastsell`
 - Writes `/srv/fastsell/config/.env`
+- Sets non-PostgreSQL runtime directories to `root:root` with host-browsable permissions
 - Copies `docker-compose.yml`, nginx config, and database migrations
 - Pulls prebuilt container images from GHCR
 - Applies `db/migrations/000001_v0_1_baseline_schema.up.sql`
 - Starts PostgreSQL, API, system-agent, and web services
+
+FastSell does not require a host user or group named `fastsell`. App data under `/srv/fastsell/data` is root-owned for the local appliance model. PostgreSQL data under `/srv/fastsell/data/postgres` is managed by the PostgreSQL container and is not repaired by the setup scripts.
 
 The default web port is `8888`.
 
@@ -58,7 +61,7 @@ cd fastsell-setup-v0.1.1
 sudo bash setup/linux/update.sh
 ```
 
-The updater refreshes runtime files from the extracted setup bundle, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`.
+The updater refreshes runtime files from the extracted setup bundle, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
 
 Default development and mainline examples use one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component tags: `api-latest`, `system-agent-latest`, and `web-latest`. Release setup bundles prefer matching version tags when available, such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`.
 

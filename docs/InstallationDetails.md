@@ -26,6 +26,16 @@ Runtime files live under `/srv/fastsell`:
 /srv/fastsell/data
 ```
 
+Ownership model:
+
+- `/srv/fastsell`, compose files, config, migrations, app data, images, intake folders, and exports are root-owned host paths.
+- Normal non-PostgreSQL directories are `0755`.
+- Normal non-PostgreSQL files are `0644`.
+- `/srv/fastsell/config/.env` is `0600`.
+- `/srv/fastsell/data/postgres` is owned and managed by the PostgreSQL container. The setup scripts leave its ownership and permissions unchanged.
+
+No host user or group named `fastsell` is required. Updates repair older non-PostgreSQL app data ownership to `root:root` so exports remain browsable from the host.
+
 ## Images
 
 The GitHub Actions workflow publishes one GHCR package:

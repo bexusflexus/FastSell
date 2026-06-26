@@ -363,7 +363,7 @@ func detectMimeType(file *os.File, ext string) (string, error) {
 }
 
 func moveFile(source string, destination string) error {
-	if err := os.MkdirAll(filepath.Dir(destination), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
 		return err
 	}
 
@@ -387,7 +387,7 @@ func copyFile(source string, destination string) error {
 	}
 	defer src.Close()
 
-	dst, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	dst, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}
