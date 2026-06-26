@@ -42,7 +42,7 @@ Debian/Ubuntu:
   https://docs.docker.com/engine/install/ubuntu/
 
 After installation, rerun:
-  bash deploy/linux/update.sh
+  bash setup/linux/update.sh
 GUIDANCE
 }
 
@@ -85,7 +85,7 @@ compose() {
 require_existing_install() {
     if [ ! -d "${ROOT}" ]; then
         echo "[FAIL] ${ROOT} does not exist. Install FastSell first:"
-        echo "       bash deploy/linux/install.sh"
+        echo "       bash setup/linux/install.sh"
         exit 1
     fi
 
@@ -126,6 +126,11 @@ copy_release_files() {
     as_root find "${MIGRATIONS_DIR}" -type f -name '*.sql' -delete
     as_root cp "${REPO_ROOT}/db/migrations/"*.sql "${MIGRATIONS_DIR}/"
     as_root chmod 0644 "${MIGRATIONS_DIR}/"*.sql
+}
+
+bundle_env_value() {
+    local key="$1"
+    awk -F= -v key="${key}" '$1 == key { value = substr($0, length(key) + 2) } END { print value }' "${REPO_ROOT}/.env.example"
 }
 
 pull_images() {
@@ -169,6 +174,63 @@ env_value() {
     printf '%s' "${value}"
 }
 
+set_env_value() {
+    local key="$1"
+    local value="$2"
+    local tmp_env
+
+    tmp_env="$(mktemp)"
+    chmod 600 "${tmp_env}"
+    as_root awk -v key="${key}" -v value="${value}" '
+        BEGIN { prefix = key "="; seen = 0 }
+        index($0, prefix) == 1 { print prefix value; seen = 1; next }
+        { print }
+        END {
+            if (!seen) {
+                print prefix value
+            }
+        }
+    ' "${ENV_FILE}" > "${tmp_env}"
+    as_root install -m 0600 "${tmp_env}" "${ENV_FILE}"
+    as_root chown root:root "${ENV_FILE}"
+    rm -f "${tmp_env}"
+}
+
+is_managed_fastsell_image() {
+    local component="$1"
+    local value="$2"
+
+    [[ "${value}" =~ ^ghcr\.io/bexusflexus/fastsell:${component}-(latest|v[0-9]+\.[0-9]+(\.[0-9]+)?)$ ]]
+}
+
+update_managed_image_tag() {
+    local key="$1"
+    local component="$2"
+    local current
+    local desired
+
+    current="$(env_value "${key}")"
+    desired="$(bundle_env_value "${key}")"
+    if [ -z "${desired}" ]; then
+        return
+    fi
+
+    if [ -z "${current}" ] || is_managed_fastsell_image "${component}" "${current}"; then
+        if [ "${current}" != "${desired}" ]; then
+            echo "[OK] Updating ${key} to ${desired}"
+            set_env_value "${key}" "${desired}"
+        fi
+    else
+        echo "[OK] Keeping custom ${key}: ${current}"
+    fi
+}
+
+update_managed_image_tags() {
+    update_managed_image_tag "FASTSELL_API_IMAGE" "api"
+    update_managed_image_tag "FASTSELL_SYSTEM_AGENT_IMAGE" "system-agent"
+    update_managed_image_tag "FASTSELL_WEB_IMAGE" "web"
+}
+
 check_health() {
     local port
     local app_url
@@ -202,6 +264,7 @@ main() {
     require_existing_install
     update_repo_checkout
     copy_release_files
+    update_managed_image_tags
     pull_images
     apply_migrations
     restart_services

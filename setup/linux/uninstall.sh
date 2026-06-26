@@ -10,7 +10,7 @@ DOCKER_CMD=(docker)
 usage() {
     cat <<'USAGE'
 Usage:
-  bash deploy/linux/uninstall.sh
+  bash setup/linux/uninstall.sh
 USAGE
 }
 

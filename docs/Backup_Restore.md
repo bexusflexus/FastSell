@@ -13,6 +13,10 @@ sudo tar -C /srv/fastsell -czf fastsell-data.tgz data config db
 
 Store backups off-host.
 
+## Before Update
+
+Always create a backup before running `sudo bash setup/linux/update.sh` from a newer setup bundle. Keep the backup until the updated FastSell stack has started and health checks pass.
+
 ## Restore
 
 Install FastSell on the target host, stop the stack, restore files, then restore PostgreSQL:

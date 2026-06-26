@@ -16,7 +16,9 @@ By default, FastSell serves HTTP on port `8888`. Put it behind a trusted reverse
 
 ## AI Credentials
 
-AI provider configuration requires user-provided credentials or environment variables. Store provider secrets outside Git and rotate them if exposed.
+Normal inventory setup can run without AI configured, but Whole Scene and AI features require Gemini configuration. For v0.1, Gemini is the only tested AI provider. See `docs/AI_Setup.md`.
+
+No API key is included with FastSell. Store `GEMINI_API_KEY` only in FastSell's environment configuration or another private secret store. Do not commit real keys into Git, and do not paste keys into screenshots, support tickets, logs, chat messages, or public issues. Rotate keys if exposed.
 
 ## Filesystem Storage
 

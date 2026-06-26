@@ -2,6 +2,15 @@
 
 FastSell has a Go backend and a React/TypeScript frontend.
 
+Use a full repository clone for development and contribution work. The setup bundle is for normal users who only need to install, update, uninstall, and run FastSell from prebuilt GHCR images.
+
+```bash
+git clone https://github.com/bexusflexus/FastSell.git
+cd FastSell
+```
+
+See `CONTRIBUTING.md` for branch creation, pull request, validation, and maintainer approval expectations.
+
 ## Backend
 
 ```bash
@@ -10,6 +19,8 @@ go test ./...
 ```
 
 The API requires `DATABASE_URL` when run locally. Use PostgreSQL through Docker Compose or another local PostgreSQL instance and apply migrations from `db/migrations`.
+
+Normal inventory development can run without AI configured. Whole Scene and AI features require Gemini configuration; for v0.1, Gemini is the only tested provider. See `docs/AI_Setup.md` and use `GEMINI_API_KEY` as the local environment variable name when testing those features.
 
 ## Frontend
 
@@ -36,6 +47,16 @@ Use new numbered migrations for future schema changes. Do not edit the baseline 
 ## Local Files
 
 Image files are stored on disk, not in PostgreSQL. Local development data, `.env` files, build output, and dependency directories should stay untracked.
+
+## Setup Bundle
+
+The user-facing setup bundle is generated from the full repository:
+
+```bash
+bash scripts/setup/create-setup-bundle.sh v0.1.0
+```
+
+This writes `dist/fastsell-setup-v0.1.0.zip` and `dist/fastsell-setup-v0.1.0.tar.gz`. The generated `dist/` directory is ignored by Git.
 
 ## License
 
