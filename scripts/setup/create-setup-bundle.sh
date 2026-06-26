@@ -145,16 +145,16 @@ main() {
     copy_file "docs/Security.md"
     copy_file "docs/TheBasics.md"
     copy_file "docs/images/ai_setup/gemini_admin_setup.png"
-    copyfile "docs/images/thebasics/container_types.png"
+    copy_file "docs/images/thebasics/container_types.png"
 
-    copyfile "docs/images/thebasics/containers.png"
-    copyfile "docs/images/thebasics/inv_container_contents.png"
-    copyfile "docs/images/thebasics/inv_grps.png"
-    copyfile "docs/images/thebasics/inv_item.png"
-    copyfile "docs/images/thebasics/inventory.png"
-    copyfile "docs/images/thebasics/locations.png"
-    copyfile "docs/images/thebasics/review.png"
-    copyfile "docs/images/thebasics/sell.png"
+    copy_file "docs/images/thebasics/containers.png"
+    copy_file "docs/images/thebasics/inv_container_contents.png"
+    copy_file "docs/images/thebasics/inv_grps.png"
+    copy_file "docs/images/thebasics/inv_item.png"
+    copy_file "docs/images/thebasics/inventory.png"
+    copy_file "docs/images/thebasics/locations.png"
+    copy_file "docs/images/thebasics/review.png"
+    copy_file "docs/images/thebasics/sell.png"
 
     apply_versioned_image_tags
     write_archives
