@@ -13,34 +13,9 @@ For v0.1, Gemini is the only tested AI provider. Other provider types or provide
 - Whole Scene requires an active Gemini provider with vision enabled.
 - AI Assist also depends on configured AI provider credentials where it is used.
 
-## Configure the Environment
-
-Add your Gemini key to FastSell's environment configuration. For setup bundle installs, edit:
-
-```text
-/srv/fastsell/config/.env
-```
-
-Use the placeholder name from `.env.example`:
-
-```dotenv
-GEMINI_API_KEY=replace-with-your-gemini-api-key
-```
-
-Do not commit real keys into Git. Do not paste real keys into screenshots, support tickets, logs, chat messages, or public issues.
-
-After changing `/srv/fastsell/config/.env`, restart the FastSell stack:
-
-```bash
-sudo docker compose --env-file /srv/fastsell/config/.env \
-  --project-name fastsell \
-  -f /srv/fastsell/compose/docker-compose.yml up -d
-```
-
-## Configure FastSell Admin
+## Configure FastSell AI Provider in Admin
 
 In the FastSell web UI:
-
 - Open Admin / AI Configuration.
 - Create or edit a provider.
 - Set provider type to `gemini`.
@@ -52,11 +27,13 @@ In the FastSell web UI:
 
 Whole Scene currently requires the active provider to be Gemini. AI Assist uses the configured active provider credentials where AI Assist is enabled.
 
+![Upload page](images/ai_setup/gemini_admin_setup.png)
+
 ## Troubleshooting
 
 Missing key:
 
-- Confirm `/srv/fastsell/config/.env` contains `GEMINI_API_KEY=...`.
+- Confirm Admin / AI  contains the correct `GEMINI_API_KEY=...`.
 - Confirm Admin / AI Configuration has API Key Env Var set to `GEMINI_API_KEY`.
 - Restart the stack after editing the environment file.
 
