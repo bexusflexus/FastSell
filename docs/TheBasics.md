@@ -77,7 +77,7 @@ Admin | System - Gives a detailed run down on System status and health.
 
 Amdin | AI Configuration - Configure you AI provider here.  Here is the full setup page:
 
-![Setup AI Provider](images/ai_setup/AI_Setup.md)
+![Setup AI Provider](docs/AI_Setup.md)
 
 ## Getting Items into the System
 
