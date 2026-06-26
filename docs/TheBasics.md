@@ -22,8 +22,8 @@ Status Indicator - System Live is good, anything else is bad.
 
 If you haven't already follow the links below:
 
-- [Installation](docs/Installation.md)
-- [Installation Details (Technical)](docs/InstallationDetails.md)
+- [Installation](Installation.md)
+- [Installation Details (Technical)](InstallationDetails.md)
 A good test is to go to http://<localhost>:8888/
 
 You will need to use you lan IP address for localhost if not on the same machine FastSell is installed on, but if you have a more sophisticated network setup available to you then use that.
@@ -77,7 +77,7 @@ Admin | System - Gives a detailed run down on System status and health.
 
 Amdin | AI Configuration - Configure you AI provider here.  Here is the full setup page:
 
-![Setup AI Provider](docs/AI_Setup.md)
+![Setup AI Provider](AI_Setup.md)
 
 ## Getting Items into the System
 
