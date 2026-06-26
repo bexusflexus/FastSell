@@ -78,4 +78,4 @@ Developers and contributors should clone the full repository, follow `docs/Devel
 
 Normal inventory setup can run without AI configured, but Whole Scene and AI features require Gemini configuration. For v0.1, Gemini is the only tested AI provider.
 
-No API key is included with FastSell. Create your own Gemini API key, add it to FastSell's environment configuration, and configure Admin / AI Configuration to read `GEMINI_API_KEY`. See `docs/AI_Setup.md`.
+No API key is included with FastSell. Create your own Gemini API key, add it to FastSell's environment configuration, and configure Admin / AI Configuration to read `GEMINI_API_KEY`. See [AI setup](docs/AI_Setup.md).
