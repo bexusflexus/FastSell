@@ -20,6 +20,8 @@ go test ./...
 
 The API requires `DATABASE_URL` when run locally. Use PostgreSQL through Docker Compose or another local PostgreSQL instance and apply migrations from `db/migrations`.
 
+Normal inventory development can run without AI configured. Whole Scene and AI features require Gemini configuration; for v0.1, Gemini is the only tested provider. See `docs/AI_Setup.md` and use `GEMINI_API_KEY` as the local environment variable name when testing those features.
+
 ## Frontend
 
 ```bash

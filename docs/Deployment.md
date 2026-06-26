@@ -48,7 +48,9 @@ The setup installer writes `/srv/fastsell/config/.env`. Important settings inclu
 - `FASTSELL_HTTP_PORT`
 - `FASTSELL_API_IMAGE`, `FASTSELL_SYSTEM_AGENT_IMAGE`, `FASTSELL_WEB_IMAGE`
 - `DATA_ROOT`, `IMAGE_ROOT`, and intake directories
-- AI provider credentials or environment variable names, when configured by the operator
+- `GEMINI_API_KEY`, when Whole Scene or AI features are used
+
+Normal inventory setup can run without AI configured, but Whole Scene and AI features require Gemini configuration. For v0.1, Gemini is the only tested AI provider. See `docs/AI_Setup.md`.
 
 ## Operations
 

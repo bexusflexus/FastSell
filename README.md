@@ -54,10 +54,13 @@ http://localhost:8888
 - [Installation](docs/Installation.md)
 - [Deployment](docs/Deployment.md)
 - [Development](docs/Development.md)
+- [AI setup](docs/AI_Setup.md)
 - [Architecture](docs/Architecture.md)
 - [Backup and restore](docs/Backup_Restore.md)
 - [Security](docs/Security.md)
 - [Roadmap](docs/Roadmap.md)
+
+Normal inventory setup can run without AI configured, but Whole Scene and AI features require Gemini configuration. For v0.1, Gemini is the only tested AI provider; see [AI setup](docs/AI_Setup.md).
 
 ## Development
 
