@@ -44,7 +44,7 @@ Go to Admin | Inventory page and create a new Inventory Group.  Household Items 
 
 Here a some examples of Inventory Groups:
 
-![Inventory Groups](images/thebasics/thebasics.png)
+![Inventory Groups](images/thebasics/inv_grps.png)
 
 ### Admin | Container Types
 
