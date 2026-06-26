@@ -77,7 +77,7 @@ Admin | System - Gives a detailed run down on System status and health.
 
 Amdin | AI Configuration - Configure you AI provider here.  Here is the full setup page:
 
-![Setup AI Provider](docs/AI_Setup.md)
+![Setup AI Provider](images/ai_setup/AI_Setup.md)
 
 ## Getting Items into the System
 
@@ -109,7 +109,7 @@ This is human in the middle landing page where all upload/intake items go before
 
 This page is composed of two sections, "Normal and Whole Scene" review.  Items that were entered via the normal intake route through the Upload page will land in the Normal review.  Items coming from the Whole Scene process will be found in the Whole Scene Review section.
 
-![Review Page](docs/review.png)
+![Review Page](images/thebasics/review.png)
 
 Each item can be approved or rejected.  An approved item goes to Inventory a rejected item is deleted from the system.
 
@@ -125,12 +125,11 @@ The Inventory Page is how all inventory items are viewed, managed, and disposed 
 
 The top of the page contains the search area where you can select differing critera for sorting and filtering inventory items.  All searching is fuzzy logic "instant".  If you have tens of thousands of inventory items performance may need to be adjusted.
 
-![Inventory Page](docs/inventory.png)
+![Inventory Page](images/thebasics/inventory.png)
 
 Inventory Items are listed by default by Container.  Clicking on a container will expose the inventory items in each.  There an inventory item can be clicked and drilled into.
 
-![Container Contents](docs/inv_container_contents.
-png)
+![Container Contents](images/thebasics/inv_container_contents.png)
 
 Functions in the Inventory Items drilldown view are Edit | Add Image | Archive | Delete
 
@@ -140,13 +139,13 @@ Archive sets the item to an archived status and essentially removes it from inve
 
 Delete will hard delete the inventory item from the system.  It will cannot be restored, except through re-adding through the intake process.
 
-![Inventory Item Drill Down](docs/inv_item.png)
+![Inventory Item Drill Down](images/thebasics/inv_item.png)
 
 ## Selling Items
 
 The last function on the Inventory Item Detail page is the Sell / Listing Drafts.  This will allow you to create a sales draft for the inventory item that can later be copied to FB Marketplace, and down the road other vendors as well.  
 
-![Sell](docs/sell.png)
+![Sell](images/thebasics/sell.png)
 
 Most of this screen is self-explanatory.  The draft gets created and the items can be copied into FB Marketplace.  You will need to already have a FB session open in your browser and new sell item started.  Paste all the info into the FB window.  For uploading images to the FB ad you will need to be mapped to the FastSellExport directory on your FastSell server.  Here you will find the images to upload extracted and prepared for you by FastSell.
 
