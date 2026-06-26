@@ -1,4 +1,6 @@
-# Deployment
+# Installation Details
+
+This is aimed at System Administers and presents a more technical version of the install process.
 
 FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
