@@ -147,7 +147,7 @@ type savedUploadFile struct {
 }
 
 func (h *UploadHandler) CreateImages(w http.ResponseWriter, r *http.Request) {
-	if err := os.MkdirAll(h.intakeDir, 0750); err != nil {
+	if err := os.MkdirAll(h.intakeDir, 0755); err != nil {
 		respond.ErrorCode(w, http.StatusInternalServerError, "storage_unavailable", "failed to prepare intake directory")
 		return
 	}
@@ -674,7 +674,7 @@ func saveUploadMultipartFile(intakeDir string, maxUploadBytes int64, file upload
 	}
 
 	destinationPath := filepath.Join(intakeDir, storedFilename)
-	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return savedUploadFile{}, err
 	}

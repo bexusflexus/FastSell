@@ -216,7 +216,7 @@ func (s *ReviewStore) GetUploadGroup(ctx context.Context, groupID string) (model
 
 func (s *ReviewStore) ensureImageDirectories() error {
 	for _, dir := range []string{s.imageConfig.OriginalsDir, s.imageConfig.ThumbnailsDir, s.imageConfig.NormalizedDir} {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
@@ -261,7 +261,7 @@ func (s *ReviewStore) saveReviewImageUpload(header *multipart.FileHeader, writte
 	}
 
 	destinationPath := filepath.Join(s.imageConfig.OriginalsDir, storedFilename)
-	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return savedItemImageFile{}, err
 	}

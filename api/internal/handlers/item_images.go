@@ -179,7 +179,7 @@ func (h *ItemHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 
 func (s *ItemStore) ensureImageDirectories() error {
 	for _, dir := range []string{s.imageConfig.OriginalsDir, s.imageConfig.ThumbnailsDir, s.imageConfig.NormalizedDir} {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
@@ -224,7 +224,7 @@ func (s *ItemStore) saveItemImageUpload(header *multipart.FileHeader, writtenFil
 	}
 
 	destinationPath := filepath.Join(s.imageConfig.OriginalsDir, storedFilename)
-	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return savedItemImageFile{}, err
 	}
@@ -534,13 +534,13 @@ func (s *ItemStore) regenerateItemImageVariants(record itemImageUploadRecord) (s
 }
 
 func writeVariantImage(src image.Image, imageFormat string, destinationPath string, maxEdge int) error {
-	if err := os.MkdirAll(filepath.Dir(destinationPath), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0755); err != nil {
 		return err
 	}
 
 	scaled := resizeImageToMaxEdge(src, maxEdge)
 	tempPath := destinationPath + ".tmp"
-	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -665,7 +665,7 @@ func cleanupWrittenItemFiles(files []writtenItemImageFile) {
 }
 
 func copyImageVariantFile(sourcePath string, destinationPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destinationPath), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0755); err != nil {
 		return err
 	}
 
@@ -676,7 +676,7 @@ func copyImageVariantFile(sourcePath string, destinationPath string) error {
 	defer src.Close()
 
 	tempPath := destinationPath + ".tmp"
-	dst, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
+	dst, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

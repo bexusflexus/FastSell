@@ -126,7 +126,7 @@ func (s *ListingDraftStore) preparePhotoExportForDraft(ctx context.Context, reco
 		return models.ListingPhotoExport{}, errors.New("listing photo export root is not configured")
 	}
 
-	if err := os.MkdirAll(root, 0750); err != nil {
+	if err := os.MkdirAll(root, 0755); err != nil {
 		return models.ListingPhotoExport{}, err
 	}
 
@@ -139,7 +139,7 @@ func (s *ListingDraftStore) preparePhotoExportForDraft(ctx context.Context, reco
 	if err := os.RemoveAll(exportDir); err != nil {
 		return models.ListingPhotoExport{}, err
 	}
-	if err := os.MkdirAll(exportDir, 0750); err != nil {
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
 		return models.ListingPhotoExport{}, err
 	}
 
@@ -292,7 +292,7 @@ func copyRegularFile(source string, destination string) error {
 		return errors.New("source file is not a regular file")
 	}
 
-	dst, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+	dst, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

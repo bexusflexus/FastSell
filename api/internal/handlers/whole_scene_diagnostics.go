@@ -87,7 +87,7 @@ func (w *WholeSceneAnalysisWorker) writeWholeSceneLocalizationDiagnostics(scanID
 		return
 	}
 	dir := filepath.Join(root, scanID)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("failed to prepare Whole Scene diagnostics dir scan_id=%s: %v", scanID, err)
 		return
 	}
@@ -104,7 +104,7 @@ func (w *WholeSceneAnalysisWorker) writeWholeSceneLocalizationDiagnostics(scanID
 		log.Printf("failed to marshal Whole Scene localization diagnostics scan_id=%s: %v", scanID, err)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(dir, "localization-decisions.json"), payload, 0640); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "localization-decisions.json"), payload, 0644); err != nil {
 		log.Printf("failed to write Whole Scene localization diagnostics scan_id=%s: %v", scanID, err)
 	}
 }

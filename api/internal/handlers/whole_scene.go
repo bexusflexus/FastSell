@@ -832,7 +832,7 @@ func (s *WholeSceneStore) saveMultipartFile(file uploadFileInput, header *multip
 
 func (s *WholeSceneStore) ensureCandidateImageDirectories() error {
 	for _, dir := range []string{s.imageConfig.OriginalsDir, s.imageConfig.ThumbnailsDir, s.imageConfig.NormalizedDir} {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
@@ -870,7 +870,7 @@ func (s *WholeSceneStore) saveCandidateImageUpload(header *multipart.FileHeader,
 	}
 
 	destinationPath := filepath.Join(s.imageConfig.OriginalsDir, storedFilename)
-	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	dst, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return savedItemImageFile{}, err
 	}
@@ -2529,7 +2529,7 @@ func (s *WholeSceneStore) ListReviewScans(ctx context.Context, containerID *stri
 }
 
 func (h *WholeSceneHandler) CreateScan(w http.ResponseWriter, r *http.Request) {
-	if err := os.MkdirAll(h.store.intakeDir, 0750); err != nil {
+	if err := os.MkdirAll(h.store.intakeDir, 0755); err != nil {
 		respond.ErrorCode(w, http.StatusInternalServerError, "storage_unavailable", "failed to prepare intake directory")
 		return
 	}

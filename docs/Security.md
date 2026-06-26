@@ -24,6 +24,8 @@ No API key is included with FastSell. Store `GEMINI_API_KEY` only in FastSell's 
 
 Uploaded images and generated exports live under `/srv/fastsell/data`. Treat this directory as private application data.
 
+FastSell uses a root-owned appliance-style host runtime tree. The setup scripts repair non-PostgreSQL app data to `root:root` with host-browsable directory and file modes. PostgreSQL data under `/srv/fastsell/data/postgres` is left to the PostgreSQL container, and install/update leave its ownership and permissions unchanged.
+
 ## Reporting Issues
 
 For public security reports, open a GitHub security advisory or contact the project maintainer through the repository.

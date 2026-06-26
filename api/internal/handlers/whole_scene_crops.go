@@ -438,12 +438,12 @@ func copyImageRegion(src image.Image, rect image.Rectangle) image.Image {
 }
 
 func writeWholeSceneCropJPEG(img image.Image, destinationPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destinationPath), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0755); err != nil {
 		return err
 	}
 
 	tempPath := destinationPath + ".tmp"
-	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

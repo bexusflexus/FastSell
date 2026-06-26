@@ -45,7 +45,7 @@ func main() {
 		cfg.ListingPhotoExportRoot,
 	}
 	for _, dir := range requiredDirs {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			log.Fatalf("failed to prepare directory %s: %v", filepath.Clean(dir), err)
 		}
 		if err := verifyWritableDirectory(dir); err != nil {

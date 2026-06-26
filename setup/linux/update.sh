@@ -5,6 +5,7 @@ ROOT="/srv/fastsell"
 COMPOSE_DIR="${ROOT}/compose"
 CONFIG_DIR="${ROOT}/config"
 ENV_FILE="${CONFIG_DIR}/.env"
+DATA_DIR="${ROOT}/data"
 MIGRATIONS_DIR="${ROOT}/db/migrations"
 NGINX_DIR="${CONFIG_DIR}/nginx"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
@@ -120,12 +121,30 @@ update_repo_checkout() {
 copy_release_files() {
     echo "[OK] Copying updated runtime files"
     as_root install -d -m 0755 "${ROOT}" "${COMPOSE_DIR}" "${CONFIG_DIR}" "${NGINX_DIR}" "${MIGRATIONS_DIR}"
+    as_root install -d -m 0755 \
+        "${DATA_DIR}" \
+        "${DATA_DIR}/intake/incoming" \
+        "${DATA_DIR}/intake/processing" \
+        "${DATA_DIR}/intake/failed" \
+        "${DATA_DIR}/images/originals" \
+        "${DATA_DIR}/images/normalized" \
+        "${DATA_DIR}/images/thumbnails" \
+        "${DATA_DIR}/exports/listing-photos"
     as_root install -m 0644 "${REPO_ROOT}/docker-compose.yml" "${COMPOSE_FILE}"
     as_root install -m 0644 "${REPO_ROOT}/docker/nginx/fastsell.conf" "${NGINX_DIR}/fastsell.conf"
 
     as_root find "${MIGRATIONS_DIR}" -type f -name '*.sql' -delete
     as_root cp "${REPO_ROOT}/db/migrations/"*.sql "${MIGRATIONS_DIR}/"
     as_root chmod 0644 "${MIGRATIONS_DIR}/"*.sql
+}
+
+repair_runtime_permissions() {
+    echo "[OK] Repairing root-owned host runtime permissions"
+    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -exec chown root:root {} +
+    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -type d -exec chmod 0755 {} +
+    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -type f ! -path "${ENV_FILE}" -exec chmod 0644 {} +
+    as_root chown root:root "${ENV_FILE}"
+    as_root chmod 0600 "${ENV_FILE}"
 }
 
 bundle_env_value() {
@@ -256,6 +275,15 @@ check_health() {
 
     echo "[OK] FastSell update complete"
     echo "[OK] Open ${app_url}"
+    show_runtime_status
+}
+
+show_runtime_status() {
+    as_root ls -ld "${ROOT}"
+    as_root ls -ld "${DATA_DIR}"
+    as_root ls -ld "${DATA_DIR}/exports"
+    as_root ls -ld "${DATA_DIR}/exports/listing-photos"
+    as_root ls -ld "${DATA_DIR}/postgres"
     compose ps
 }
 
@@ -265,6 +293,7 @@ main() {
     update_repo_checkout
     copy_release_files
     update_managed_image_tags
+    repair_runtime_permissions
     pull_images
     apply_migrations
     restart_services
