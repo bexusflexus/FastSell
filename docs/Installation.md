@@ -71,7 +71,15 @@ Default development and mainline examples use one GHCR package, `ghcr.io/bexusfl
 sudo bash setup/linux/uninstall.sh
 ```
 
-Uninstall removes FastSell containers, the Compose network, and `/srv/fastsell`, including database and image data. Back up first.
+Default uninstall removes FastSell containers, the Compose network, and installed app/runtime files, but preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved data includes PostgreSQL data, uploaded images/files, generated exports, and other FastSell runtime data. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
+
+To permanently remove FastSell user data, back up first and run:
+
+```bash
+sudo bash setup/linux/uninstall.sh --killmydata
+```
+
+`--killmydata` removes `/srv/fastsell`, including `/srv/fastsell/data`, `/srv/fastsell/config`, PostgreSQL data, uploaded images/files, generated exports, and installed app/config/runtime files.
 
 ## Developer Install Path
 

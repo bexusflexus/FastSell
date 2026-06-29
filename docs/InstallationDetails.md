@@ -66,22 +66,31 @@ Normal inventory setup can run without AI configured, but Whole Scene and AI fea
 
 ## Operations
 
-Install from an extracted setup bundle:
+-Initial Install from an extracted setup bundle:
 
 ```bash
 sudo bash setup/linux/install.sh
 ```
 
-Back up before updating, then run the updater from the newly extracted setup bundle:
+-Update: back up before updating, then run the updater from the newly extracted setup bundle. The updater requires an existing install, preserves /srv/fastsell/data and /srv/fastsell/config, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
 
 ```bash
 sudo bash setup/linux/update.sh
 ```
 
-Uninstall:
+-Uninstall (2 paths):
+
+1) Default uninstall preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
 
 ```bash
 sudo bash setup/linux/uninstall.sh
+```
+
+
+2) Permanently delete FastSell data, config, and installed app/runtime files by running:
+
+```bash
+sudo bash setup/linux/uninstall.sh --killmydata
 ```
 
 Check status:
