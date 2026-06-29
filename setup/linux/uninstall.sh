@@ -2,15 +2,25 @@
 set -euo pipefail
 
 ROOT="/srv/fastsell"
-ENV_FILE="${ROOT}/config/.env"
+DATA_DIR="${ROOT}/data"
+CONFIG_DIR="${ROOT}/config"
+ENV_FILE="${CONFIG_DIR}/.env"
 COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
 PROJECT_NAME="fastsell"
 DOCKER_CMD=(docker)
+KILL_MY_DATA=false
 
 usage() {
     cat <<'USAGE'
 Usage:
-  bash setup/linux/uninstall.sh
+  bash setup/linux/uninstall.sh [--killmydata]
+
+Default uninstall preserves FastSell user data under /srv/fastsell/data
+and installed config under /srv/fastsell/config.
+
+Options:
+  --killmydata  Permanently remove all FastSell data, config, and installed
+                files under /srv/fastsell.
 USAGE
 }
 
@@ -79,15 +89,48 @@ remove_known_docker_artifacts() {
     "${DOCKER_CMD[@]}" network rm fastsell-net >/dev/null 2>&1 || true
 }
 
-remove_runtime_root() {
+assert_expected_root() {
     if [ "${ROOT}" != "/srv/fastsell" ]; then
         echo "[FAIL] Refusing to remove unexpected root: ${ROOT}"
         exit 1
     fi
+}
 
+remove_app_runtime_files() {
+    assert_expected_root
+
+    echo "[OK] Removing FastSell app/runtime files while preserving user data and config"
+    as_root rm -rf -- \
+        "${ROOT}/compose" \
+        "${ROOT}/db"
+
+    if [ -d "${DATA_DIR}" ]; then
+        echo "[OK] User data preserved at ${DATA_DIR}"
+        echo "     Preserved data includes PostgreSQL data, uploaded images/files, generated exports, and other FastSell runtime data."
+    else
+        echo "[OK] No FastSell user data directory found at ${DATA_DIR}."
+    fi
+
+    if [ -d "${CONFIG_DIR}" ]; then
+        echo "[OK] Config preserved at ${CONFIG_DIR}"
+        echo "     Preserved config includes .env, database credentials, app paths, port/image settings, and nginx config."
+    else
+        echo "[OK] No FastSell config directory found at ${CONFIG_DIR}."
+    fi
+}
+
+remove_runtime_root() {
+    assert_expected_root
+
+    echo "======================================================================"
+    echo "[WARN] --killmydata was provided."
+    echo "[WARN] Permanently deleting all FastSell data, config, and installed files under ${ROOT}."
+    echo "[WARN] This includes ${DATA_DIR}, ${CONFIG_DIR}, PostgreSQL data, uploaded images/files, generated exports, and installed app/config/runtime files."
+    echo "======================================================================"
     if [ -e "${ROOT}" ]; then
-        echo "[WARN] Removing all FastSell runtime data under ${ROOT}"
+        echo "[WARN] Removing all FastSell files under ${ROOT}"
         as_root rm -rf -- "${ROOT}"
+        echo "[OK] Deleted all FastSell data, config, and install files under ${ROOT}"
     else
         echo "[OK] Runtime directory ${ROOT} is already absent."
     fi
@@ -98,6 +141,9 @@ while [ "$#" -gt 0 ]; do
         -h|--help)
             usage
             exit 0
+            ;;
+        --killmydata)
+            KILL_MY_DATA=true
             ;;
         *)
             usage
@@ -111,6 +157,10 @@ if check_docker; then
     compose_down
     remove_known_docker_artifacts
 fi
-remove_runtime_root
+if [ "${KILL_MY_DATA}" = true ]; then
+    remove_runtime_root
+else
+    remove_app_runtime_files
+fi
 
 echo "[OK] FastSell uninstall complete"

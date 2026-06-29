@@ -42,6 +42,12 @@ Uninstall:
 sudo bash setup/linux/uninstall.sh
 ```
 
+Default uninstall removes FastSell containers and installed app/runtime files, but preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. To permanently remove PostgreSQL data, uploaded images/files, generated exports, config, and installed app/runtime files, back up first and run:
+
+```bash
+sudo bash setup/linux/uninstall.sh --killmydata
+```
+
 Default web URL:
 
 ```text

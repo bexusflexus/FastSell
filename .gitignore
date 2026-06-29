@@ -31,3 +31,4 @@ api/tmp/
 # Local AI/tooling state
 .agents/
 .codex/
+/scripts/dev/

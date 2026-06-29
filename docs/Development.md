@@ -4,10 +4,24 @@ FastSell has a Go backend and a React/TypeScript frontend.
 
 Use a full repository clone for development and contribution work. The setup bundle is for normal users who only need to install, update, uninstall, and run FastSell from prebuilt GHCR images.
 
+Generally clone to a folder like ~/fastsell-install/.  Of course, choose the location you desire.
 ```bash
-git clone https://github.com/bexusflexus/FastSell.git
-cd FastSell
+
+cd ~/fastsell-install
+git clone https://github.com/bexusflexus/FastSell
 ```
+or for ssh
+```bash
+git clone git@github.com:bexusflexus/FastSell.git
+cd FastSell/setup/linux
+```
+
+then run the installer:
+```bash
+bash ./install.sh
+```
+
+All FastSell application and env items will be installed /srv/fastsell/
 
 See `CONTRIBUTING.md` for branch creation, pull request, validation, and maintainer approval expectations.
 

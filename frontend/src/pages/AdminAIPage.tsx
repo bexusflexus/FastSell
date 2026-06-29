@@ -39,21 +39,55 @@ interface ProviderFormState {
 
 const providerTypes: AIProviderType[] = ['gemini', 'openai', 'ollama'];
 
-const initialForm: ProviderFormState = {
-  name: '',
-  providerType: 'gemini',
-  enabled: true,
-  active: false,
-  baseUrl: '',
-  apiKeyValue: '',
-  apiKeyEnvVar: '',
-  modelName: '',
-  visionEnabled: true,
-  timeoutSeconds: '60',
-  maxOutputTokens: '',
-  temperature: '',
-  clearApiKey: false,
+const createFormDefaultsByProviderType: Record<AIProviderType, ProviderFormState> = {
+  gemini: {
+    name: 'Gemini Vision',
+    providerType: 'gemini',
+    enabled: true,
+    active: false,
+    baseUrl: '',
+    apiKeyValue: '',
+    apiKeyEnvVar: 'GEMINI_API_KEY',
+    modelName: 'gemini-3.1-flash-lite',
+    visionEnabled: true,
+    timeoutSeconds: '60',
+    maxOutputTokens: '2048',
+    temperature: '0.2',
+    clearApiKey: false,
+  },
+  openai: {
+    name: '',
+    providerType: 'openai',
+    enabled: true,
+    active: false,
+    baseUrl: '',
+    apiKeyValue: '',
+    apiKeyEnvVar: 'OPENAI_API_KEY',
+    modelName: '',
+    visionEnabled: true,
+    timeoutSeconds: '60',
+    maxOutputTokens: '',
+    temperature: '',
+    clearApiKey: false,
+  },
+  ollama: {
+    name: '',
+    providerType: 'ollama',
+    enabled: true,
+    active: false,
+    baseUrl: 'http://localhost:11434',
+    apiKeyValue: '',
+    apiKeyEnvVar: '',
+    modelName: '',
+    visionEnabled: true,
+    timeoutSeconds: '60',
+    maxOutputTokens: '',
+    temperature: '',
+    clearApiKey: false,
+  },
 };
+
+const initialForm: ProviderFormState = createFormDefaultsByProviderType.gemini;
 
 export function AdminAIPage() {
   const [providers, setProviders] = useState<AIProviderConfig[]>([]);
@@ -102,11 +136,20 @@ export function AdminAIPage() {
   };
 
   const handleProviderTypeChange = (providerType: AIProviderType) => {
-    setForm((current) => ({
-      ...current,
-      providerType,
-      baseUrl: providerType === 'ollama' && !current.baseUrl.trim() ? 'http://localhost:11434' : current.baseUrl,
-    }));
+    setForm((current) => {
+      if (formMode !== 'create') {
+        return {
+          ...current,
+          providerType,
+          baseUrl: providerType === 'ollama' && !current.baseUrl.trim() ? 'http://localhost:11434' : current.baseUrl,
+        };
+      }
+
+      return {
+        ...createFormDefaultsByProviderType[providerType],
+        active: current.active,
+      };
+    });
   };
 
   const handleEdit = async (providerId: string) => {
@@ -376,7 +419,7 @@ export function AdminAIPage() {
             helperText={formMode === 'edit' && editingProviderConfiguredKey ? 'API key configured. Enter a new key to replace it.' : 'Leave blank to keep empty.'}
           />
 
-          <TextInput label="API Key Env Var" value={form.apiKeyEnvVar} onChange={(value) => setForm((current) => ({ ...current, apiKeyEnvVar: value }))} placeholder="OPENAI_API_KEY" />
+          <TextInput label="API Key Env Var" value={form.apiKeyEnvVar} onChange={(value) => setForm((current) => ({ ...current, apiKeyEnvVar: value }))} placeholder={apiKeyEnvVarPlaceholder(form.providerType)} />
 
           <TextInput label="Timeout Seconds" value={form.timeoutSeconds} onChange={(value) => setForm((current) => ({ ...current, timeoutSeconds: value }))} />
 
@@ -677,6 +720,17 @@ function buildUpdateInput(form: ProviderFormState): UpdateAIProviderInput {
   }
 
   return payload;
+}
+
+function apiKeyEnvVarPlaceholder(providerType: AIProviderType): string {
+  switch (providerType) {
+    case 'gemini':
+      return 'GEMINI_API_KEY';
+    case 'openai':
+      return 'OPENAI_API_KEY';
+    case 'ollama':
+      return 'Optional';
+  }
 }
 
 function validateForm(form: ProviderFormState): string | null {
