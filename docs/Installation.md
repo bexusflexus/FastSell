@@ -11,30 +11,84 @@ FastSell v0.1 installs from the FastSell setup bundle. Normal users do not need 
 
 ## Install
 
-Download the setup bundle for the release you want from GitHub Releases:
+1) Create a landing spot for the install program.  
+  ```bash
+  mkdir -p ~/fastsell-install
+  cd ~/fastsell-install
+  ```
 
-```text
-https://github.com/bexusflexus/FastSell/releases
-```
+2) Download the setup bundle for the release you want from GitHub Releases.  Choose from either the .zip or .tar files.  There are 4 options for downloading (browser, curl, wget, gh).  Pick your favorite and replace version number, if necessary.
 
-Extract either archive format:
+  #### Option 1: curl
 
-```bash
-unzip fastsell-setup-v0.1.0.zip
-```
+  Tarball  
+  ```bash
+  curl -L -O https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+  ```
+  Zip
+  ```bash
+  curl -L -O https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+  ```
 
+  #### Option 2: wget
+
+  Tarball
+  ```bash
+  wget https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+  ```
+  Zip
+  ```bash
+  wget https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+  ```
+
+  #### Option 3: GitHub CLI
+
+  Tarball
+  ```bash
+  gh release download v0.1.0 --repo bexusflexus/FastSell --pattern "fastsell-setup-v0.1.0.tar.gz"
+  ```
+  Zip
+  ```bash
+  gh release download v0.1.0 --repo bexusflexus/FastSell --pattern "fastsell-setup-v0.1.0.zip"
+  ```
+
+  #### Option 4: Browser
+
+  Paste into browser address bar:
+  ```text
+  https://github.com/bexusflexus/FastSell/releases
+  ```
+
+3) Extract either archive format:
+
+Tarball
 ```bash
 tar -xzf fastsell-setup-v0.1.0.tar.gz
 ```
-
-Run the installer from the extracted setup directory:
-
+OR
+*Use this to delete tarball after extraction
 ```bash
-cd fastsell-setup-v0.1.0
-sudo bash setup/linux/install.sh
+tar -xzf fastsell-setup-v0.1.0.tar.gz && rm -- fastsell-setup-v0.1.0.tar.gz
 ```
 
-The installer:
+Zip file
+```bash
+unzip fastsell-setup-v0.1.0.zip
+```
+OR
+*Use this to delete tarball after extraction
+```bash
+unzip fastsell-setup-v0.1.0.zip && rm -- fastsell-setup-v0.1.0.zip
+```
+
+4) Run the installer from the extracted setup directory:
+
+  ```bash
+  cd fastsell-setup-v0.1.0
+  sudo bash setup/linux/install.sh
+  ```
+
+What the installer does:
 
 - Creates `/srv/fastsell`
 - Writes `/srv/fastsell/config/.env`
