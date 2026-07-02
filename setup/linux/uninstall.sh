@@ -163,4 +163,5 @@ else
     remove_app_runtime_files
 fi
 
+echo "[OK] Docker service and firewalld state were left unchanged."
 echo "[OK] FastSell uninstall complete"

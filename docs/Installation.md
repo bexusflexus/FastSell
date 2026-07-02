@@ -94,6 +94,8 @@ What the installer does:
 - Writes `/srv/fastsell/config/.env`
 - Sets non-PostgreSQL runtime directories to `root:root` with host-browsable permissions
 - Copies `docker-compose.yml`, nginx config, and database migrations
+- Automatically adds SELinux relabel options to the installed Compose bind mounts when Docker reports SELinux support
+- Opens the FastSell web and PostgreSQL ports permanently when firewalld is active
 - Pulls prebuilt container images from GHCR
 - Applies `db/migrations/000001_v0_1_baseline_schema.up.sql`
 - Starts PostgreSQL, API, system-agent, and web services
@@ -106,6 +108,19 @@ The default web port is `8888`.
 http://localhost:8888
 ```
 
+## SELinux, Firewall, and Database Access
+
+The Linux install and update scripts detect Docker SELinux support from `docker info` security options. When Docker reports SELinux enabled, the scripts patch the installed Compose file under `/srv/fastsell/compose/docker-compose.yml` with the required bind mount labels. Users do not need to run manual SELinux commands for the standard FastSell install.
+
+When firewalld is installed and active, the scripts permanently open the FastSell web port and PostgreSQL port, then reload firewalld. By default these are:
+
+- `8888/tcp`
+- `5432/tcp`
+
+If firewalld is absent or inactive, the scripts print a notice and continue without changing firewall rules.
+
+PostgreSQL remote database access is intentionally enabled by the bundled Compose configuration. This exposes port `5432` for administration, backup, restore, and integrations. Use a strong PostgreSQL password and limit network access at the host, router, or firewall layer when the machine is reachable from untrusted networks.
+
 ## Update
 
 Back up FastSell before updating. Then download and extract the newer setup bundle from GitHub Releases.
@@ -117,6 +132,8 @@ sudo bash setup/linux/update.sh
 
 The updater refreshes runtime files from the extracted setup bundle, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
 
+On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
+
 Default development and mainline examples use one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component tags: `api-latest`, `system-agent-latest`, and `web-latest`. Release setup bundles prefer matching version tags when available, such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`.
 
 ## Uninstall
@@ -126,6 +143,8 @@ sudo bash setup/linux/uninstall.sh
 ```
 
 Default uninstall removes FastSell containers, the Compose network, and installed app/runtime files, but preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved data includes PostgreSQL data, uploaded images/files, generated exports, and other FastSell runtime data. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
+
+Uninstall does not disable Docker or firewalld and does not remove firewall rules.
 
 To permanently remove FastSell user data, back up first and run:
 

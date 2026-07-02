@@ -8,6 +8,7 @@ ENV_FILE="${CONFIG_DIR}/.env"
 DATA_DIR="${ROOT}/data"
 MIGRATIONS_DIR="${ROOT}/db/migrations"
 NGINX_DIR="${CONFIG_DIR}/nginx"
+COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 PROJECT_NAME="fastsell"
 DEFAULT_HTTP_PORT="8888"
 
@@ -72,6 +73,117 @@ check_docker() {
         print_docker_guidance
         exit 1
     fi
+}
+
+docker_selinux_enabled() {
+    local security_options
+
+    security_options="$("${DOCKER_CMD[@]}" info --format '{{range .SecurityOptions}}{{println .}}{{end}}' 2>/dev/null || true)"
+    printf '%s\n' "${security_options}" | grep -Eiq '(^|[=[:space:]])selinux($|[[:space:]])'
+}
+
+patch_compose_for_docker_selinux() {
+    local tmp_compose
+
+    if ! docker_selinux_enabled; then
+        echo "[OK] Docker does not report SELinux enabled; keeping Compose bind mounts unchanged."
+        return
+    fi
+
+    echo "[OK] Docker reports SELinux enabled; patching installed Compose bind mounts."
+    tmp_compose="$(mktemp)"
+    as_root awk '
+        $0 == "      - /srv/fastsell/data/postgres:/var/lib/postgresql/data" {
+            print "      - /srv/fastsell/data/postgres:/var/lib/postgresql/data:Z"
+            next
+        }
+        $0 == "      - /srv/fastsell/db/migrations:/migrations:ro" {
+            print "      - /srv/fastsell/db/migrations:/migrations:ro,Z"
+            next
+        }
+        $0 == "      - /srv/fastsell/data:/app/data" {
+            print "      - /srv/fastsell/data/intake:/app/data/intake:Z"
+            print "      - /srv/fastsell/data/images:/app/data/images:Z"
+            print "      - /srv/fastsell/data/exports:/app/data/exports:Z"
+            next
+        }
+        $0 == "      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro" {
+            print "      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro,Z"
+            next
+        }
+        { print }
+    ' "${COMPOSE_FILE}" > "${tmp_compose}"
+    as_root install -m 0644 "${tmp_compose}" "${COMPOSE_FILE}"
+    rm -f "${tmp_compose}"
+
+    assert_selinux_compose_patch
+    cat <<PATCHED
+[OK] Applied Docker SELinux mount labels in ${COMPOSE_FILE}:
+     /srv/fastsell/data/postgres:/var/lib/postgresql/data:Z
+     /srv/fastsell/db/migrations:/migrations:ro,Z
+     /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro,Z
+     /srv/fastsell/data/intake:/app/data/intake:Z
+     /srv/fastsell/data/images:/app/data/images:Z
+     /srv/fastsell/data/exports:/app/data/exports:Z
+PATCHED
+}
+
+assert_selinux_compose_patch() {
+    local expected_mount
+
+    for expected_mount in \
+        "      - /srv/fastsell/data/postgres:/var/lib/postgresql/data:Z" \
+        "      - /srv/fastsell/db/migrations:/migrations:ro,Z" \
+        "      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro,Z" \
+        "      - /srv/fastsell/data/intake:/app/data/intake:Z" \
+        "      - /srv/fastsell/data/images:/app/data/images:Z" \
+        "      - /srv/fastsell/data/exports:/app/data/exports:Z"; do
+        if ! as_root grep -Fxq "${expected_mount}" "${COMPOSE_FILE}"; then
+            echo "[FAIL] Expected SELinux Compose mount is missing: ${expected_mount#      - }"
+            exit 1
+        fi
+    done
+
+    if as_root grep -Fq "/var/run/docker.sock:/var/run/docker.sock:ro,Z" "${COMPOSE_FILE}"; then
+        echo "[FAIL] Refusing to add SELinux relabeling to /var/run/docker.sock."
+        exit 1
+    fi
+}
+
+http_port_value() {
+    local port
+
+    port="${FASTSELL_HTTP_PORT:-}"
+    if [ -z "${port}" ] && [ -f "${ENV_FILE}" ]; then
+        port="$(as_root awk -F= '$1 == "FASTSELL_HTTP_PORT" { value = $2 } END { print value }' "${ENV_FILE}")"
+    fi
+    port="${port%\"}"
+    port="${port#\"}"
+    port="${port%\'}"
+    port="${port#\'}"
+
+    printf '%s' "${port:-${DEFAULT_HTTP_PORT}}"
+}
+
+configure_firewalld() {
+    local http_port
+
+    http_port="$(http_port_value)"
+
+    if ! command -v firewall-cmd >/dev/null 2>&1; then
+        echo "[OK] firewalld is not installed; leaving firewall rules unchanged."
+        return
+    fi
+
+    if ! as_root firewall-cmd --state >/dev/null 2>&1; then
+        echo "[OK] firewalld is installed but inactive; leaving firewall rules unchanged."
+        return
+    fi
+
+    echo "[OK] firewalld is active; opening FastSell ports ${http_port}/tcp and 5432/tcp."
+    as_root firewall-cmd --permanent --add-port="${http_port}/tcp"
+    as_root firewall-cmd --permanent --add-port="5432/tcp"
+    as_root firewall-cmd --reload
 }
 
 urlencode() {
@@ -164,7 +276,7 @@ compose() {
     "${DOCKER_CMD[@]}" compose \
         --env-file "${ENV_FILE}" \
         --project-name "${PROJECT_NAME}" \
-        -f "${COMPOSE_DIR}/docker-compose.yml" \
+        -f "${COMPOSE_FILE}" \
         "$@"
 }
 
@@ -180,16 +292,18 @@ prepare_runtime_tree() {
         "${DATA_DIR}/images/normalized" \
         "${DATA_DIR}/images/thumbnails" \
         "${DATA_DIR}/exports/listing-photos"
+    as_root install -d -m 0700 -o 70 -g 70 "${DATA_DIR}/postgres"
 }
 
 copy_release_files() {
     echo "[OK] Copying release files"
-    as_root install -m 0644 "${REPO_ROOT}/docker-compose.yml" "${COMPOSE_DIR}/docker-compose.yml"
+    as_root install -m 0644 "${REPO_ROOT}/docker-compose.yml" "${COMPOSE_FILE}"
     as_root install -m 0644 "${REPO_ROOT}/docker/nginx/fastsell.conf" "${NGINX_DIR}/fastsell.conf"
 
     as_root find "${MIGRATIONS_DIR}" -type f -name '*.sql' -delete
     as_root cp "${REPO_ROOT}/db/migrations/"*.sql "${MIGRATIONS_DIR}/"
     as_root chmod 0644 "${MIGRATIONS_DIR}/"*.sql
+    patch_compose_for_docker_selinux
 }
 
 repair_runtime_permissions() {
@@ -216,6 +330,7 @@ main() {
     prepare_runtime_tree
     write_env_file
     copy_release_files
+    configure_firewalld
 
     echo "[OK] Pulling FastSell images"
     compose --profile tools pull
