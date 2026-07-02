@@ -36,6 +36,21 @@ Ownership model:
 
 No host user or group named `fastsell` is required. Updates repair older non-PostgreSQL app data ownership to `root:root` so exports remain browsable from the host.
 
+## SELinux and firewalld
+
+The Linux install and update scripts keep a distro-neutral Compose source file and patch only the installed copy at `/srv/fastsell/compose/docker-compose.yml` when Docker reports SELinux in `docker info` security options. On SELinux-enabled Docker hosts, the installed Compose file uses `:Z` labels for FastSell bind mounts and leaves `/var/run/docker.sock` as a read-only mount without relabeling.
+
+Users do not need manual SELinux setup commands for the standard FastSell install. Fresh installs explicitly create PostgreSQL storage for `postgres:16-alpine` at `/srv/fastsell/data/postgres` with owner/group `70:70` and mode `0700`. Updates do not delete, recreate, or repair existing PostgreSQL data.
+
+When firewalld is installed and active, install and update permanently open these ports and reload firewalld:
+
+- `${FASTSELL_HTTP_PORT:-8888}/tcp`
+- `5432/tcp`
+
+If firewalld is absent or inactive, the scripts print a notice and continue.
+
+PostgreSQL remote database access is intentionally enabled. The Compose stack publishes `5432:5432` so administrators can connect for backup, restore, inspection, and integrations. Protect the host with normal network controls when FastSell is installed on a reachable machine.
+
 ## Images
 
 The GitHub Actions workflow publishes one GHCR package:
@@ -92,6 +107,8 @@ sudo bash setup/linux/uninstall.sh
 ```bash
 sudo bash setup/linux/uninstall.sh --killmydata
 ```
+
+Uninstall stops and removes FastSell Compose resources but does not disable Docker or firewalld.
 
 Check status:
 
