@@ -19,6 +19,17 @@ FastSell is intended for a self-hosted Linux machine on a trusted network.
 - SSD storage for PostgreSQL and image processing
 - Regular off-host backups
 
+## Certified Operating Systems
+
+This is not an exclusive list.  FastSell will work on most Linux distros.  The ones listed below have been tested and verfied to work.
+
+- Alpine
+- Arch, CachyOS
+- Debian, MX, AntiX
+- OpenSUSE Leap
+- RHEL 9.8, Alma, Rocky
+- VOID
+
 ## Runtime Services
 
 - PostgreSQL 16
