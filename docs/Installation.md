@@ -134,7 +134,7 @@ The updater refreshes runtime files from the extracted setup bundle, repairs non
 
 On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
 
-Default development and mainline examples use one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component tags: `api-latest`, `system-agent-latest`, and `web-latest`. Release setup bundles prefer matching version tags when available, such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`.
+FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
 
 ## Uninstall
 
