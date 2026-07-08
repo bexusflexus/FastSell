@@ -30,10 +30,20 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ```
 
 7. The same workflow uploads a candidate setup bundle and candidate release manifest as GitHub Actions artifacts.
-8. Install the candidate on a staging host:
+8. Install the candidate helper into the staging install root if it is not already present:
 
    ```bash
-   ./scripts/release/install_candidate.sh <full_git_sha>
+   ./scripts/release/fetch_candidate_bundle.sh --install-root <install-root>
+   ```
+
+   Then fetch and apply the candidate setup-bundle files from inside the staging install root:
+
+   ```bash
+   cd <install-root>/dev_only
+   ./fetch_candidate_bundle.sh <full_git_sha>
+
+   cd <install-root>
+   sudo bash setup/linux/update.sh
    ```
 
 9. Test the candidate once on staging.
@@ -120,18 +130,56 @@ Production manifests record:
 
 Use the manifest to prove which image digests were tested and promoted.
 
-## Staging Install
+## Staging Candidate Install
 
-`install_candidate.sh` always downloads and extracts the candidate artifact locally first. If these environment variables are not set, it stops there and prints manual next steps:
+Candidate testing is install-root based. A FastSell install root is the extracted setup-bundle tree that contains files such as:
 
-```bash
-FASTSELL_STAGING_HOST
-FASTSELL_STAGING_USER
-FASTSELL_STAGING_PATH
-FASTSELL_STAGING_INSTALL_MODE
+```text
+docker-compose.yml
+.env.example
+setup/linux/update.sh
+db/
+docker/
+docs/
 ```
 
-When `FASTSELL_STAGING_HOST` is set, the script asks before copying the candidate bundle to the staging host and running either `setup/linux/update.sh` or `setup/linux/install.sh`. The default mode is `update`.
+Developer-only candidate tooling lives under `<install-root>/dev_only/`. Normal production setup bundles do not include `dev_only`.
+
+To install the helper into an existing staging install root from a repo checkout:
+
+```bash
+./scripts/release/fetch_candidate_bundle.sh --install-root <install-root>
+```
+
+You can also copy `dev_only/fetch_candidate_bundle.sh` manually into `<install-root>/dev_only/`.
+
+On the staging host, run:
+
+```bash
+cd <install-root>/dev_only
+./fetch_candidate_bundle.sh <full_git_sha>
+```
+
+The helper:
+
+- locates the `publish-images.yml` workflow run for the full SHA
+- offers to watch the run if it is queued or in progress
+- downloads the `fastsell-candidate-<full_git_sha>` artifact after success
+- stores the artifact under `dev_only/candidates/<full_git_sha>/`
+- prints the candidate manifest and image refs
+- asks before applying candidate setup-bundle files into `<install-root>`
+- preserves `<install-root>/.env` and `<install-root>/dev_only/`
+- does not touch runtime data outside the install root
+- does not run `update.sh`
+
+By default the helper reads artifacts from `bexusflexus/FastSell`. Set `FASTSELL_GITHUB_REPO=owner/repo` before running it if testing a fork.
+
+After applying the candidate files, run the normal update command:
+
+```bash
+cd <install-root>
+sudo bash setup/linux/update.sh
+```
 
 Do not commit local staging configuration. Keep staging hostnames, private paths, private network details, and credentials out of the repo.
 
