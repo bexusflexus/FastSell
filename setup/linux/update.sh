@@ -331,7 +331,7 @@ is_managed_fastsell_image() {
     local component="$1"
     local value="$2"
 
-    [[ "${value}" =~ ^ghcr\.io/bexusflexus/fastsell:${component}-(latest|v[0-9]+\.[0-9]+(\.[0-9]+)?)$ ]]
+    [[ "${value}" =~ ^ghcr\.io/bexusflexus/fastsell:${component}-(latest|sha-[0-9a-f]{40}|v[0-9]+\.[0-9]+\.[0-9]+)$ ]]
 }
 
 update_managed_image_tag() {

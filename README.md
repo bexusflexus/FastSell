@@ -60,6 +60,7 @@ http://localhost:8888
 - [Installation](docs/Installation.md)
 - [Installation Details (Technical)](docs/InstallationDetails.md)
 - [Development](docs/Development.md)
+- [Release workflow](docs/ReleaseWorkflow.md)
 - [AI setup](docs/AI_Setup.md)
 - [Architecture](docs/Architecture.md)
 - [Backup and restore](docs/Backup_Restore.md)
@@ -94,4 +95,3 @@ npm install
 npm run dev
 npm run build
 ```
-

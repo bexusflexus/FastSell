@@ -5,30 +5,63 @@ usage() {
     cat <<'USAGE'
 Usage:
   bash scripts/setup/create-setup-bundle.sh v0.1.0
+  bash scripts/setup/create-setup-bundle.sh candidate-<sha> \
+    --api-image ghcr.io/bexusflexus/fastsell:api-sha-<sha> \
+    --system-agent-image ghcr.io/bexusflexus/fastsell:system-agent-sha-<sha> \
+    --web-image ghcr.io/bexusflexus/fastsell:web-sha-<sha>
 USAGE
 }
 
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ]; then
     usage
     exit 1
 fi
 
 VERSION="$1"
+shift
 case "${VERSION}" in
-    v[0-9]*)
-        ;;
-    *)
-        echo "[FAIL] Version must start with v and contain a release identifier, for example v0.1.0." >&2
+    ""|-[!-]*|*/*|*\\*)
+        echo "[FAIL] Version must be a bundle identifier, for example v0.1.0 or candidate-<sha>." >&2
         exit 1
         ;;
-esac
-
-case "${VERSION}" in
     *[!A-Za-z0-9._-]*)
         echo "[FAIL] Version may only contain letters, numbers, dots, underscores, and dashes." >&2
         exit 1
         ;;
 esac
+
+API_IMAGE=""
+SYSTEM_AGENT_IMAGE=""
+WEB_IMAGE=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --api-image)
+            [ "$#" -ge 2 ] || { echo "[FAIL] --api-image requires a value." >&2; exit 1; }
+            API_IMAGE="$2"
+            shift 2
+            ;;
+        --system-agent-image)
+            [ "$#" -ge 2 ] || { echo "[FAIL] --system-agent-image requires a value." >&2; exit 1; }
+            SYSTEM_AGENT_IMAGE="$2"
+            shift 2
+            ;;
+        --web-image)
+            [ "$#" -ge 2 ] || { echo "[FAIL] --web-image requires a value." >&2; exit 1; }
+            WEB_IMAGE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "[FAIL] Unknown argument: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+done
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
@@ -58,6 +91,14 @@ require_dir() {
     fi
 }
 
+require_command() {
+    local name="$1"
+    if ! command -v "${name}" >/dev/null 2>&1; then
+        echo "[FAIL] Required command is missing: ${name}" >&2
+        exit 1
+    fi
+}
+
 copy_file() {
     local path="$1"
     mkdir -p "${BUNDLE_DIR}/$(dirname -- "${path}")"
@@ -70,20 +111,83 @@ copy_dir() {
     cp -a "${REPO_ROOT}/${path}" "${BUNDLE_DIR}/${path}"
 }
 
-apply_versioned_image_tags() {
-    if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-        echo "[OK] ${VERSION} is not a release semver tag; keeping latest image defaults."
-        return
+validate_image_ref() {
+    local name="$1"
+    local value="$2"
+
+    if [ -z "${value}" ]; then
+        echo "[FAIL] ${name} is required." >&2
+        exit 1
     fi
 
-    echo "[OK] Using versioned FastSell image tags for ${VERSION}"
+    case "${value}" in
+        *[[:space:]]*)
+            echo "[FAIL] ${name} must not contain whitespace: ${value}" >&2
+            exit 1
+            ;;
+        ghcr.io/*)
+            ;;
+        *)
+            echo "[FAIL] ${name} must be a GHCR image ref: ${value}" >&2
+            exit 1
+            ;;
+    esac
+}
+
+prepare_image_refs() {
+    if [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        API_IMAGE="${API_IMAGE:-ghcr.io/bexusflexus/fastsell:api-${VERSION}}"
+        SYSTEM_AGENT_IMAGE="${SYSTEM_AGENT_IMAGE:-ghcr.io/bexusflexus/fastsell:system-agent-${VERSION}}"
+        WEB_IMAGE="${WEB_IMAGE:-ghcr.io/bexusflexus/fastsell:web-${VERSION}}"
+    elif [ -z "${API_IMAGE}" ] || [ -z "${SYSTEM_AGENT_IMAGE}" ] || [ -z "${WEB_IMAGE}" ]; then
+        echo "[FAIL] Non-production bundles must pass explicit --api-image, --system-agent-image, and --web-image refs." >&2
+        exit 1
+    fi
+
+    validate_image_ref "FASTSELL_API_IMAGE" "${API_IMAGE}"
+    validate_image_ref "FASTSELL_SYSTEM_AGENT_IMAGE" "${SYSTEM_AGENT_IMAGE}"
+    validate_image_ref "FASTSELL_WEB_IMAGE" "${WEB_IMAGE}"
+}
+
+apply_image_refs() {
+    echo "[OK] Using FastSell image refs:"
+    echo "     FASTSELL_API_IMAGE=${API_IMAGE}"
+    echo "     FASTSELL_SYSTEM_AGENT_IMAGE=${SYSTEM_AGENT_IMAGE}"
+    echo "     FASTSELL_WEB_IMAGE=${WEB_IMAGE}"
+
     sed -i \
-        -e "s#ghcr.io/bexusflexus/fastsell:api-latest#ghcr.io/bexusflexus/fastsell:api-${VERSION}#g" \
-        -e "s#ghcr.io/bexusflexus/fastsell:system-agent-latest#ghcr.io/bexusflexus/fastsell:system-agent-${VERSION}#g" \
-        -e "s#ghcr.io/bexusflexus/fastsell:web-latest#ghcr.io/bexusflexus/fastsell:web-${VERSION}#g" \
+        -e "s#ghcr.io/bexusflexus/fastsell:api-latest#${API_IMAGE}#g" \
+        -e "s#ghcr.io/bexusflexus/fastsell:system-agent-latest#${SYSTEM_AGENT_IMAGE}#g" \
+        -e "s#ghcr.io/bexusflexus/fastsell:web-latest#${WEB_IMAGE}#g" \
         "${BUNDLE_DIR}/.env.example" \
         "${BUNDLE_DIR}/docker-compose.yml" \
         "${BUNDLE_DIR}/setup/linux/install.sh"
+}
+
+file_contains_literal() {
+    local file="$1"
+    local needle="$2"
+
+    awk -v needle="${needle}" 'index($0, needle) { found = 1 } END { exit found ? 0 : 1 }' "${file}"
+}
+
+verify_image_ref_substitution() {
+    local file
+    local ref
+
+    for file in \
+        "${BUNDLE_DIR}/.env.example" \
+        "${BUNDLE_DIR}/docker-compose.yml" \
+        "${BUNDLE_DIR}/setup/linux/install.sh"; do
+        for ref in "${API_IMAGE}" "${SYSTEM_AGENT_IMAGE}" "${WEB_IMAGE}"; do
+            if ! file_contains_literal "${file}" "${ref}"; then
+                echo "[FAIL] Expected image ref was not written to ${file}: ${ref}" >&2
+                exit 1
+            fi
+        done
+    done
+
+    echo "[OK] Verified image refs in generated bundle files."
 }
 
 write_archives() {
@@ -100,6 +204,7 @@ write_archives() {
 }
 
 main() {
+    require_command "zip"
     require_file "README.md"
     require_file "LICENSE"
     require_file ".env.example"
@@ -156,7 +261,9 @@ main() {
     copy_file "docs/images/thebasics/review.png"
     copy_file "docs/images/thebasics/sell.png"
 
-    apply_versioned_image_tags
+    prepare_image_refs
+    apply_image_refs
+    verify_image_ref_substitution
     write_archives
 
     echo "[OK] Wrote ${DIST_DIR}/${BUNDLE_NAME}.zip"

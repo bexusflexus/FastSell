@@ -1,0 +1,249 @@
+name: Promote Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full main commit SHA that passed staging QA
+        required: true
+        type: string
+      version:
+        description: Production release version, for example v0.1.1
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+
+concurrency:
+  group: promote-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote tested candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${{ inputs.source_sha }}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be a full 40-character lowercase git SHA." >&2
+            exit 1
+          fi
+          if [[ ! "${{ inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must match vX.Y.Z." >&2
+            exit 1
+          fi
+
+      - name: Check out tested source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Install archive tools
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download tested candidate manifest
+        id: candidate_manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source_sha="${{ inputs.source_sha }}"
+          run_id="$(gh run list \
+            --workflow publish-images.yml \
+            --branch main \
+            --limit 100 \
+            --json databaseId,headSha,conclusion \
+            --jq ".[] | select(.headSha == \"${source_sha}\" and .conclusion == \"success\") | .databaseId" \
+            | awk 'NR == 1 { print }')"
+
+          if [ -z "${run_id}" ]; then
+            echo "Could not find a successful Publish Images run for ${source_sha}." >&2
+            exit 1
+          fi
+
+          mkdir -p dist/candidate-artifact
+          gh run download "${run_id}" \
+            --name "fastsell-candidate-${source_sha}" \
+            --dir dist/candidate-artifact
+
+          manifest="dist/candidate-artifact/fastsell-release-candidate-${source_sha}.json"
+          test -f "${manifest}" || { echo "Missing candidate manifest: ${manifest}" >&2; exit 1; }
+          echo "path=${manifest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Resolve and verify candidate images
+        id: images
+        shell: bash
+        env:
+          CANDIDATE_MANIFEST: ${{ steps.candidate_manifest.outputs.path }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/fastsell"
+          source_sha="${{ inputs.source_sha }}"
+          version="${{ inputs.version }}"
+
+          api_candidate="${image}:api-sha-${source_sha}"
+          web_candidate="${image}:web-sha-${source_sha}"
+          system_agent_candidate="${image}:system-agent-sha-${source_sha}"
+
+          api_prod="${image}:api-${version}"
+          web_prod="${image}:web-${version}"
+          system_agent_prod="${image}:system-agent-${version}"
+
+          for ref in "${api_prod}" "${web_prod}" "${system_agent_prod}"; do
+            if docker buildx imagetools inspect "${ref}" >/dev/null 2>&1; then
+              echo "Production image tag already exists: ${ref}" >&2
+              exit 1
+            fi
+          done
+
+          api_digest="$(docker buildx imagetools inspect "${api_candidate}" --format '{{.Manifest.Digest}}')"
+          web_digest="$(docker buildx imagetools inspect "${web_candidate}" --format '{{.Manifest.Digest}}')"
+          system_agent_digest="$(docker buildx imagetools inspect "${system_agent_candidate}" --format '{{.Manifest.Digest}}')"
+
+          for digest in "${api_digest}" "${web_digest}" "${system_agent_digest}"; do
+            if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Invalid candidate digest: ${digest}" >&2
+              exit 1
+            fi
+          done
+
+          python3 - "${CANDIDATE_MANIFEST}" \
+            "${api_candidate}" "${api_digest}" \
+            "${web_candidate}" "${web_digest}" \
+            "${system_agent_candidate}" "${system_agent_digest}" <<'PY'
+          import json
+          import sys
+
+          manifest_path = sys.argv[1]
+          actual = {
+              "api": {"ref": sys.argv[2], "digest": sys.argv[3]},
+              "web": {"ref": sys.argv[4], "digest": sys.argv[5]},
+              "system_agent": {"ref": sys.argv[6], "digest": sys.argv[7]},
+          }
+
+          with open(manifest_path, "r", encoding="utf-8") as handle:
+              manifest = json.load(handle)
+
+          expected = manifest.get("images", {})
+          for component, actual_values in actual.items():
+              expected_values = expected.get(component, {})
+              for key, actual_value in actual_values.items():
+                  expected_value = expected_values.get(key)
+                  if expected_value != actual_value:
+                      raise SystemExit(
+                          f"{component} {key} mismatch: manifest has {expected_value!r}, GHCR has {actual_value!r}"
+                      )
+          PY
+
+          {
+            echo "api_candidate=${api_candidate}"
+            echo "web_candidate=${web_candidate}"
+            echo "system_agent_candidate=${system_agent_candidate}"
+            echo "api_prod=${api_prod}"
+            echo "web_prod=${web_prod}"
+            echo "system_agent_prod=${system_agent_prod}"
+            echo "api_digest=${api_digest}"
+            echo "web_digest=${web_digest}"
+            echo "system_agent_digest=${system_agent_digest}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate candidate verification manifest
+        shell: bash
+        run: |
+          bash scripts/release/generate_release_manifest.sh \
+            --kind candidate \
+            --repo "${GITHUB_REPOSITORY}" \
+            --source-sha "${{ inputs.source_sha }}" \
+            --bundle-name "fastsell-setup-candidate-${{ inputs.source_sha }}" \
+            --api-ref "${{ steps.images.outputs.api_candidate }}" \
+            --api-digest "${{ steps.images.outputs.api_digest }}" \
+            --web-ref "${{ steps.images.outputs.web_candidate }}" \
+            --web-digest "${{ steps.images.outputs.web_digest }}" \
+            --system-agent-ref "${{ steps.images.outputs.system_agent_candidate }}" \
+            --system-agent-digest "${{ steps.images.outputs.system_agent_digest }}" \
+            --output "dist/fastsell-release-candidate-${{ inputs.source_sha }}.json"
+
+      - name: Promote exact candidate image digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t "${{ steps.images.outputs.api_prod }}" \
+            "${{ steps.images.outputs.api_candidate }}@${{ steps.images.outputs.api_digest }}"
+          docker buildx imagetools create \
+            -t "${{ steps.images.outputs.web_prod }}" \
+            "${{ steps.images.outputs.web_candidate }}@${{ steps.images.outputs.web_digest }}"
+          docker buildx imagetools create \
+            -t "${{ steps.images.outputs.system_agent_prod }}" \
+            "${{ steps.images.outputs.system_agent_candidate }}@${{ steps.images.outputs.system_agent_digest }}"
+
+      - name: Build production setup bundle
+        shell: bash
+        run: |
+          bash scripts/setup/create-setup-bundle.sh "${{ inputs.version }}" \
+            --api-image "${{ steps.images.outputs.api_prod }}" \
+            --web-image "${{ steps.images.outputs.web_prod }}" \
+            --system-agent-image "${{ steps.images.outputs.system_agent_prod }}"
+
+      - name: Generate production release manifest
+        shell: bash
+        run: |
+          bash scripts/release/generate_release_manifest.sh \
+            --kind production \
+            --repo "${GITHUB_REPOSITORY}" \
+            --source-sha "${{ inputs.source_sha }}" \
+            --version "${{ inputs.version }}" \
+            --promoted-from-sha "${{ inputs.source_sha }}" \
+            --bundle-name "fastsell-setup-${{ inputs.version }}" \
+            --api-ref "${{ steps.images.outputs.api_prod }}" \
+            --api-candidate-ref "${{ steps.images.outputs.api_candidate }}" \
+            --api-digest "${{ steps.images.outputs.api_digest }}" \
+            --web-ref "${{ steps.images.outputs.web_prod }}" \
+            --web-candidate-ref "${{ steps.images.outputs.web_candidate }}" \
+            --web-digest "${{ steps.images.outputs.web_digest }}" \
+            --system-agent-ref "${{ steps.images.outputs.system_agent_prod }}" \
+            --system-agent-candidate-ref "${{ steps.images.outputs.system_agent_candidate }}" \
+            --system-agent-digest "${{ steps.images.outputs.system_agent_digest }}" \
+            --output "dist/fastsell-release-${{ inputs.version }}.json"
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum \
+            "fastsell-setup-${{ inputs.version }}.zip" \
+            "fastsell-setup-${{ inputs.version }}.tar.gz" \
+            "fastsell-release-${{ inputs.version }}.json" \
+            > "fastsell-release-${{ inputs.version }}.sha256"
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ inputs.source_sha }}
+          name: FastSell ${{ inputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/fastsell-setup-${{ inputs.version }}.zip
+            dist/fastsell-setup-${{ inputs.version }}.tar.gz
+            dist/fastsell-release-${{ inputs.version }}.json
+            dist/fastsell-release-${{ inputs.version }}.sha256

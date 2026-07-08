@@ -59,11 +59,10 @@ The GitHub Actions workflow publishes one GHCR package:
 
 Components are separated by tags:
 
-- `api-latest`
-- `system-agent-latest`
-- `web-latest`
+- Candidate images use full-SHA tags such as `api-sha-<full_git_sha>`, `system-agent-sha-<full_git_sha>`, and `web-sha-<full_git_sha>`.
+- Production images use versioned tags such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`.
 
-The publish workflow also emits component-prefixed branch, SHA, and version tags such as `api-main`, `api-sha-<sha>`, `api-v0.1.0`, `system-agent-main`, and `web-v0.1.0`. Release setup bundles prefer matching versioned image tags when the bundle version is a semver tag.
+The release workflow does not publish or move `latest` tags. Any remaining `latest` references are legacy compatibility defaults for older local/source-checkout flows and should not be used as production release refs.
 
 If GHCR push fails with `permission_denied: write_package`, confirm repository Actions workflow permissions are set to Read and write permissions, and confirm the workflow uses `GITHUB_TOKEN` with `packages: write`.
 
