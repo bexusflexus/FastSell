@@ -190,6 +190,13 @@ verify_image_ref_substitution() {
     echo "[OK] Verified image refs in generated bundle files."
 }
 
+verify_dev_only_not_bundled() {
+    if [ -e "${BUNDLE_DIR}/dev_only" ]; then
+        echo "[FAIL] dev_only must not be included in setup bundles." >&2
+        exit 1
+    fi
+}
+
 write_archives() {
     mkdir -p "${DIST_DIR}"
     rm -f \
@@ -264,6 +271,7 @@ main() {
     prepare_image_refs
     apply_image_refs
     verify_image_ref_substitution
+    verify_dev_only_not_bundled
     write_archives
 
     echo "[OK] Wrote ${DIST_DIR}/${BUNDLE_NAME}.zip"

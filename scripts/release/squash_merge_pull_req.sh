@@ -158,7 +158,7 @@ main() {
     echo "     ghcr.io/${owner}/fastsell:api-sha-${source_sha}"
     echo "     ghcr.io/${owner}/fastsell:web-sha-${source_sha}"
     echo "     ghcr.io/${owner}/fastsell:system-agent-sha-${source_sha}"
-    echo "[OK] Next: wait for Publish Images, then run ./scripts/release/install_candidate.sh ${source_sha}"
+    echo "[OK] Next: wait for Publish Images, then run <install-root>/dev_only/fetch_candidate_bundle.sh ${source_sha}"
 }
 
 main "$@"
