@@ -39,6 +39,47 @@ repo_root() {
     git rev-parse --show-toplevel
 }
 
+run_pr_check_gate() {
+    local pr="$1"
+    local required_output
+    local required_status
+    local full_output
+    local full_status
+
+    echo "[OK] Required check status:"
+    set +e
+    required_output="$(gh pr checks "${pr}" --required 2>&1)"
+    required_status="$?"
+    set -e
+
+    if [ "${required_status}" -eq 0 ]; then
+        printf '%s\n' "${required_output}"
+        return
+    fi
+
+    if ! printf '%s\n' "${required_output}" | rg -q "no required checks reported"; then
+        printf '%s\n' "${required_output}" >&2
+        echo "[FAIL] Required checks are not passing." >&2
+        echo "[OK] Full check status:"
+        gh pr checks "${pr}" || true
+        exit 1
+    fi
+
+    printf '%s\n' "${required_output}"
+    echo "[OK] No required checks are configured; checking all PR checks instead."
+
+    set +e
+    full_output="$(gh pr checks "${pr}" 2>&1)"
+    full_status="$?"
+    set -e
+    printf '%s\n' "${full_output}"
+
+    if [ "${full_status}" -ne 0 ]; then
+        echo "[FAIL] One or more PR checks are failing, pending, or unavailable." >&2
+        exit 1
+    fi
+}
+
 ensure_clean_worktree() {
     if [ -n "$(git status --porcelain)" ]; then
         echo "[FAIL] Working tree has uncommitted changes. Commit or stash them before merging a pull request." >&2
@@ -69,6 +110,7 @@ main() {
     parse_args "$@"
     require_cmd git
     require_cmd gh
+    require_cmd rg
 
     cd "$(repo_root)"
     ensure_clean_worktree
@@ -89,13 +131,7 @@ main() {
         exit 1
     fi
 
-    echo "[OK] Required check status:"
-    if ! gh pr checks "${PR}" --required; then
-        echo "[FAIL] Required checks are not passing." >&2
-        echo "[OK] Full check status:"
-        gh pr checks "${PR}" || true
-        exit 1
-    fi
+    run_pr_check_gate "${PR}"
 
     confirm "Squash merge PR ${PR}?"
 

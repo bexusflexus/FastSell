@@ -51,6 +51,27 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
 
     The script prompts for a production version in `vX.Y.Z` format and triggers the `Promote Release` workflow.
 
+## Branch Protection
+
+Light branch protection on `main` is optional but recommended. It makes the expected PR validation environment explicit without changing the release workflow.
+
+Configure it with:
+
+```bash
+./scripts/admin/configure_main_branch_protection.sh --dry-run
+./scripts/admin/configure_main_branch_protection.sh
+```
+
+The script uses classic branch protection through `gh api`. It requires the current PR checks, leaves required reviews disabled, does not enforce admins, disables force pushes and branch deletion, and does not restrict push actors.
+
+Before applying it, verify the exact check names from a recent pull request:
+
+```bash
+gh pr checks <pr-number> --json name,state,workflow --jq '.[] | [.workflow, .name, .state] | @tsv'
+```
+
+If GitHub reports different check names, edit `REQUIRED_CHECK_CONTEXTS` near the top of `scripts/admin/configure_main_branch_protection.sh` before running it for real. This is repository administration and should not be run as part of every release.
+
 ## Tags
 
 Candidate tags are full-SHA tags. They identify the exact `main` commit that was built and tested:
