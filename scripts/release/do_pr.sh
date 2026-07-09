@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NO_WATCH=0
-
 usage() {
     cat <<'USAGE'
 Usage:
-  do_pr.sh [--no-watch]
+  do_pr.sh [commit message]
+  do_pr.sh --help
 
-Runs the normal FastSell PR flow from the current feature branch:
-  verify branch/worktree -> create or reuse PR -> watch checks -> ask before squash merge -> update local main
+Runs the normal single-maintainer FastSell PR flow from the current feature branch:
+  git add . -> commit -> push/create or reuse PR -> watch checks -> squash merge -> update local main
 
-Options:
-  --no-watch   Create or reuse the PR, then print the next command without watching or merging.
-  --help       Show this help.
+If no commit message is provided, the current branch name is used.
 USAGE
 }
 
@@ -36,13 +33,6 @@ repo_root() {
     printf '%s' "${root}"
 }
 
-ensure_clean_worktree() {
-    if [ -n "$(git status --porcelain)" ]; then
-        echo "[FAIL] Working tree has uncommitted changes. Commit or stash them before running the PR flow." >&2
-        exit 1
-    fi
-}
-
 current_branch() {
     local branch
 
@@ -57,26 +47,6 @@ current_branch() {
     fi
 
     printf '%s' "${branch}"
-}
-
-parse_args() {
-    while [ "$#" -gt 0 ]; do
-        case "$1" in
-            --no-watch)
-                NO_WATCH=1
-                shift
-                ;;
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            *)
-                echo "[FAIL] Unknown argument: $1" >&2
-                usage >&2
-                exit 1
-                ;;
-        esac
-    done
 }
 
 check_auth() {
@@ -101,25 +71,13 @@ find_pr_number() {
     printf '%s' "${pr_number}"
 }
 
-watch_checks() {
-    local pr_number="$1"
-    local watch_status
-
-    set +e
-    gh pr checks "${pr_number}" --watch
-    watch_status="$?"
-    set -e
-
-    if [ "${watch_status}" -ne 0 ]; then
-        echo "[WARN] Check watch exited non-zero. Final merge gate will verify current PR check status."
-    fi
-}
-
 print_candidate_next_steps() {
     local main_sha="$1"
 
     cat <<NEXT
-[6/6] Candidate QA next step
+[8/8] Candidate QA next step
+Main commit: ${main_sha}
+
 Use ~/fastsell-install as an example setup workspace:
 
   cd ~/fastsell-install/dev_only
@@ -131,7 +89,15 @@ NEXT
 }
 
 main() {
-    parse_args "$@"
+    if [ "${1:-}" = "--help" ]; then
+        usage
+        exit 0
+    fi
+    if [[ "${1:-}" == --* ]]; then
+        echo "[FAIL] Unsupported option: $1" >&2
+        usage >&2
+        exit 1
+    fi
     require_cmd git
     require_cmd gh
 
@@ -139,39 +105,81 @@ main() {
     root="$(repo_root)"
     cd "${root}"
 
-    echo "[1/6] Checking branch and worktree"
+    echo "[1/8] Checking repo, branch, and GitHub auth"
     check_auth
+
     local branch
     branch="$(current_branch)"
-    ensure_clean_worktree
     echo "[OK] Current branch: ${branch}"
 
-    echo "[2/6] Creating or finding pull request"
+    echo "[OK] Fetching origin/main"
+    git fetch origin main
+
+    local commit_message
+    commit_message="$*"
+    if [ -z "${commit_message}" ]; then
+        commit_message="${branch}"
+    fi
+
+    echo "[2/8] Inspecting local changes"
+    echo "[OK] git status --short --untracked-files=all:"
+    local status_output
+    status_output="$(git status --short --untracked-files=all)"
+    if [ -n "${status_output}" ]; then
+        printf '%s\n' "${status_output}"
+    else
+        echo "  clean"
+    fi
+
+    local behind_count
+    local ahead_count
+    read -r behind_count ahead_count < <(git rev-list --left-right --count origin/main...HEAD)
+    echo "[OK] Branch state relative to origin/main: ahead ${ahead_count}, behind ${behind_count}"
+
+    echo "[3/8] Staging and committing changes"
+    if [ -n "${status_output}" ]; then
+        git add .
+        git diff --cached --check
+
+        if git diff --cached --quiet; then
+            echo "[OK] No staged changes after git add ."
+        else
+            echo "[OK] Committing with message: ${commit_message}"
+            git commit -m "${commit_message}"
+        fi
+    else
+        echo "[OK] No local changes to commit."
+    fi
+
+    read -r behind_count ahead_count < <(git rev-list --left-right --count origin/main...HEAD)
+    if [ "${ahead_count}" -eq 0 ]; then
+        echo "[FAIL] No local changes and no commits ahead of origin/main. Nothing to submit." >&2
+        exit 1
+    fi
+    echo "[OK] Branch is ready: ahead ${ahead_count}, behind ${behind_count}"
+
+    echo "[4/8] Creating or reusing pull request"
     bash scripts/release/create_pull_req.sh
 
     local pr_number
     pr_number="$(find_pr_number)"
     echo "[OK] Using PR #${pr_number}"
 
-    if [ "${NO_WATCH}" -eq 1 ]; then
-        cat <<NEXT
-[OK] --no-watch requested. PR is ready for manual checks.
-[OK] Next command:
-     ./scripts/release/squash_merge_pull_req.sh ${pr_number}
-NEXT
-        exit 0
+    echo "[5/8] Watching PR checks"
+    if ! gh pr checks "${pr_number}" --watch; then
+        echo "[FAIL] Pull request checks did not pass. Not merging." >&2
+        exit 1
     fi
 
-    echo "[3/6] Watching PR checks"
-    watch_checks "${pr_number}"
+    echo "[6/8] Squash merging pull request"
+    bash scripts/release/squash_merge_pull_req.sh "${pr_number}" --yes
 
-    echo "[4/6] Confirming squash merge"
-    echo "[OK] Final check status and merge confirmation are handled by squash_merge_pull_req.sh."
-    bash scripts/release/squash_merge_pull_req.sh "${pr_number}"
+    echo "[7/8] Updating local main"
+    git switch main
+    git pull --ff-only origin main
 
-    echo "[5/6] Updating local main"
     local main_sha
-    main_sha="$(git rev-parse main)"
+    main_sha="$(git rev-parse HEAD)"
     echo "[OK] Local main is at ${main_sha}"
 
     print_candidate_next_steps "${main_sha}"
