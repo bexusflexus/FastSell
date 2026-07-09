@@ -4,11 +4,11 @@ FastSell v0.1 can run normal inventory, container, upload, and review workflows 
 
 For v0.1, Gemini is the only tested AI provider. Other provider types or provider-looking settings may appear in the admin UI or code, but they are not tested or supported for v0.1.
 
-An AI Provider must be setup and configured in the Admin | AI Configuration page.
+An AI provider must be set up and configured in the Admin / AI Configuration page.
 
 ## Gemini Requirements
 
-- No Gemini API key is included with FastSell.   You must create and manage your own Gemini API key.
+- No Gemini API key is included with FastSell. You must create and manage your own Gemini API key.
 - The FastSell server must have internet access to reach Gemini.
 - The key must have available quota and permission to use the Gemini model you configure.
 - Whole Scene requires an active Gemini provider with vision enabled.
@@ -18,9 +18,9 @@ An AI Provider must be setup and configured in the Admin | AI Configuration page
 
 In the FastSell web UI:
 - Open Admin / AI Configuration.
-- Create or edit a provideri (i.e., Gemini Vision).
+- Create or edit a provider, such as Gemini Vision.
 - Set provider type to `gemini`.
-- Use a Gemini model available to your key (i.e., gemini-3.1-flash-lite).
+- Use a Gemini model available to your key, such as `gemini-3.1-flash-lite`.
 - Leave vision enabled for Whole Scene.
 - Set API Key Env Var to `GEMINI_API_KEY`.
 - Timeout = 60s
@@ -29,7 +29,7 @@ In the FastSell web UI:
 - Enable the provider and set it active.
 - Use the provider test action to confirm it is working.
 
-AI Assistn and Whole Scene currently requires the active provider to be Gemini.
+AI Assist and Whole Scene currently require the active provider to be Gemini.
 
 ![AI Setup Page](images/ai_setup/gemini_admin_setup.png)
 
@@ -37,7 +37,7 @@ AI Assistn and Whole Scene currently requires the active provider to be Gemini.
 
 Missing key:
 
-- Confirm Admin / AI  contains the correct `GEMINI_API_KEY=...`.
+- Confirm Admin / AI contains the correct `GEMINI_API_KEY=...`.
 - Confirm Admin / AI Configuration has API Key Env Var set to `GEMINI_API_KEY`.
 
 No internet from server:

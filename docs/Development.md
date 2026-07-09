@@ -4,24 +4,16 @@ FastSell has a Go backend and a React/TypeScript frontend.
 
 Use a full repository clone for development and contribution work. The setup bundle is for normal users who only need to install, update, uninstall, and run FastSell from prebuilt GHCR images.
 
-Generally clone to a folder like ~/fastsell-install/.  Of course, choose the location you desire.
-```bash
+Do not clone the full repo into `~/fastsell-install`; that folder is the stable setup workspace for extracted setup bundles. Use a separate development checkout, for example:
 
-cd ~/fastsell-install
-git clone https://github.com/bexusflexus/FastSell
-```
-or for ssh
 ```bash
+mkdir -p ~/Code/bexusflexus
+cd ~/Code/bexusflexus
 git clone git@github.com:bexusflexus/FastSell.git
-cd FastSell/setup/linux
+cd FastSell
 ```
 
-then run the installer:
-```bash
-bash ./install.sh
-```
-
-All FastSell application and env items will be installed /srv/fastsell/
+Normal users should use setup bundles, not a repo clone. Setup bundles are extracted into `~/fastsell-install`; runtime files, config, and data are installed under `/srv/fastsell`.
 
 See `CONTRIBUTING.md` for branch creation, pull request, validation, and maintainer approval expectations.
 
@@ -67,10 +59,10 @@ Image files are stored on disk, not in PostgreSQL. Local development data, `.env
 The user-facing setup bundle is generated from the full repository:
 
 ```bash
-bash scripts/setup/create-setup-bundle.sh v0.1.0
+bash scripts/setup/create-setup-bundle.sh <version>
 ```
 
-This writes `dist/fastsell-setup-v0.1.0.zip` and `dist/fastsell-setup-v0.1.0.tar.gz`. The generated `dist/` directory is ignored by Git.
+Replace `<version>` with the version you are building, such as `v0.1.1`. This writes `dist/fastsell-setup-<version>.zip` and `dist/fastsell-setup-<version>.tar.gz`. The generated `dist/` directory is ignored by Git.
 
 ## License
 

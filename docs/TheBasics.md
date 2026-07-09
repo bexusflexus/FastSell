@@ -27,13 +27,13 @@ If you haven't already, follow the links below:
 * [Installation](Installation.md)
 * [Installation Details (Technical)](InstallationDetails.md)
 
-A good test is to go to http://<localhost>:8888/
+A good test on the FastSell host is to go to `http://localhost:8888`. From another device, use `http://<server-ip-or-hostname>:8888`.
 
-You will need to use your LAN IP address for localhost if not on the same machine FastSell is installed on, but if you have a more sophisticated network setup available to you then use that.
+Use the FastSell host's LAN IP address or hostname when you are not on the same machine FastSell is installed on.
 
 ## Setup Your Phone and a More Sophisticated Network Setup
 
-In order to connect your phone to the FastSell platform, you will need to make sure your phone is connected to your local LAN, or use a secure private network provider such as Netbird or Tailscale.  You will need to make sure your phone can get here: http://<localhost>:8888/
+In order to connect your phone to the FastSell platform, you will need to make sure your phone is connected to your local LAN, or use a secure private network provider. From the FastSell host, the URL is `http://localhost:8888`; from your phone or another device, use `http://<server-ip-or-hostname>:8888`.
 
 Although it is possible to use FastSell without your phone connected, you lose the speed and portability FastSell provides.  However, if you just want to try FastSell, then skip this step.
 
@@ -81,7 +81,7 @@ Admin | System - Gives a detailed rundown on System status and health.
 
 Admin | AI Configuration - Configure your AI provider here.  Here is the full setup page:
 
-![Setup AI Provider](AI_Setup.md)
+[AI Setup](AI_Setup.md)
 
 ## Getting Items into the System
 
@@ -152,13 +152,8 @@ The last function on the Inventory Item Detail page is the Sell / Listing Drafts
 
 ![Sell](images/thebasics/sell.png)
 
-Most of this screen is self-explanatory.  The draft gets created and the items can be copied into FB Marketplace.  You will need to already have a FB session open in your browser and a new sell item started.  Paste all the info into the FB window.  For uploading images to the FB ad you will need to be mapped to the FastSellExport directory on your FastSell server.  Here you will find the images to upload extracted and prepared for you by FastSell.
+Most of this screen is self-explanatory.  The draft gets created and the items can be copied into FB Marketplace.  You will need to already have a FB session open in your browser and a new sell item started.  Paste all the info into the FB window.  For uploading images to the FB ad, map a client-side share or drive named `FastSellExport` to the FastSell server export directory. Here you will find the images to upload extracted and prepared for you by FastSell.
 
-The key is to make sure that you have a drive mapped to a local share called:
-
-/srv/fastsell/fastsellexport
-
-to the actual server drive at:
+The server path for listing-photo exports is:
 
 /srv/fastsell/data/exports/listing-photos/
-

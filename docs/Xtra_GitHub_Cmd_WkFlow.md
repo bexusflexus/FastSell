@@ -7,6 +7,27 @@ This is a practical Git and GitHub CLI reference for working on FastSell.
 
 The project is a public repository. Before pushing any branch, inspect the diff for private paths, hostnames, personal usernames, secrets, `.env` values, tokens, keys, local machine names, and test data that should not be public.
 
+## FastSell shortcut workflow
+
+For the current single-maintainer FastSell workflow, the normal shortcut is:
+
+```
+./scripts/release/do_pr.sh "Commit message"
+```
+
+This handles:
+
+- `git add .`
+- commit
+- push
+- pull request create/reuse
+- waiting for checks to register
+- watching checks
+- squash merge
+- local `main` update
+
+The manual GitHub flow below remains useful for general Git/GitHub knowledge and future enterprise-style review workflows where branch work, PR review, and merge are separate steps.
+
 ## 1. Check repository status
 
 Use this before and after almost every change.

@@ -38,13 +38,15 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ```
 
 5. The same workflow uploads a candidate setup bundle and candidate release manifest as GitHub Actions artifacts.
-6. Install the candidate helper into the staging setup workspace if it is not already present:
+6. Install the candidate helper into the staging setup workspace if it is not already present. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh` and is not included in normal production setup bundles.
 
    ```bash
-   ./scripts/release/fetch_candidate_bundle.sh --setup-workspace ~/fastsell-install
+   mkdir -p ~/fastsell-install/dev_only
+   cp -p dev_only/fetch_candidate_bundle.sh ~/fastsell-install/dev_only/fetch_candidate_bundle.sh
+   chmod +x ~/fastsell-install/dev_only/fetch_candidate_bundle.sh
    ```
 
-   Then fetch and apply the candidate setup-bundle files from inside the staging setup workspace:
+   If your repo checkout and staging host are different machines, copy `dev_only/fetch_candidate_bundle.sh` to the staging setup workspace with `scp` or `rsync`. Then fetch and apply the candidate setup-bundle files from inside the staging setup workspace:
 
    ```bash
    cd ~/fastsell-install/dev_only
@@ -151,15 +153,17 @@ docker/
 docs/
 ```
 
-Developer-only candidate tooling lives under `~/fastsell-install/dev_only/`. Normal production setup bundles do not include `dev_only`.
+Developer-only candidate tooling lives under `~/fastsell-install/dev_only/`. Normal production setup bundles do not include `dev_only`. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh`.
 
 To install the helper into an existing staging setup workspace from a repo checkout:
 
 ```bash
-./scripts/release/fetch_candidate_bundle.sh --setup-workspace ~/fastsell-install
+mkdir -p ~/fastsell-install/dev_only
+cp -p dev_only/fetch_candidate_bundle.sh ~/fastsell-install/dev_only/fetch_candidate_bundle.sh
+chmod +x ~/fastsell-install/dev_only/fetch_candidate_bundle.sh
 ```
 
-You can also copy `dev_only/fetch_candidate_bundle.sh` manually into `~/fastsell-install/dev_only/`.
+If your repo checkout and staging host are different machines, copy `dev_only/fetch_candidate_bundle.sh` to the staging setup workspace with `scp` or `rsync`.
 
 On the staging host, run:
 
@@ -183,7 +187,7 @@ The helper:
 
 By default the helper reads artifacts from `bexusflexus/FastSell`. Set `FASTSELL_GITHUB_REPO=owner/repo` before running it if testing a fork.
 
-After applying the candidate files, run the normal update command:
+After applying the candidate files, run the normal update command. This is the step that updates the actual `/srv/fastsell` runtime:
 
 ```bash
 cd ~/fastsell-install

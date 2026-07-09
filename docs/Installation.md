@@ -30,14 +30,14 @@ Tarball:
 
 ```bash
 curl -L -o fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
 ```
 
 Zip:
 
 ```bash
 curl -L -o fastsell-setup.zip \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.zip
 ```
 
 ### Option 2: wget
@@ -46,14 +46,14 @@ Tarball:
 
 ```bash
 wget -O fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
 ```
 
 Zip:
 
 ```bash
 wget -O fastsell-setup.zip \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.zip
 ```
 
 ### Option 3: GitHub CLI
@@ -61,16 +61,16 @@ wget -O fastsell-setup.zip \
 Tarball:
 
 ```bash
-gh release download v0.1.0 --repo bexusflexus/FastSell \
-  --pattern "fastsell-setup-v0.1.0.tar.gz" \
+gh release download v0.1.1 --repo bexusflexus/FastSell \
+  --pattern "fastsell-setup-v0.1.1.tar.gz" \
   --output fastsell-setup.tar.gz
 ```
 
 Zip:
 
 ```bash
-gh release download v0.1.0 --repo bexusflexus/FastSell \
-  --pattern "fastsell-setup-v0.1.0.zip" \
+gh release download v0.1.1 --repo bexusflexus/FastSell \
+  --pattern "fastsell-setup-v0.1.1.zip" \
   --output fastsell-setup.zip
 ```
 
@@ -157,7 +157,7 @@ The updater runs from the setup workspace and refreshes runtime files under `/sr
 
 On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
 
-FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
+FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-v0.1.1`, `system-agent-v0.1.1`, and `web-v0.1.1`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
 
 ## Uninstall
 
