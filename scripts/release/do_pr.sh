@@ -8,7 +8,7 @@ Usage:
   do_pr.sh --help
 
 Runs the normal single-maintainer FastSell PR flow from the current feature branch:
-  git add . -> commit -> push/create or reuse PR -> watch checks -> squash merge -> update local main
+  git add . -> commit -> push/create or reuse PR -> wait for checks -> watch checks -> squash merge -> update local main
 
 If no commit message is provided, the current branch name is used.
 USAGE
@@ -71,11 +71,36 @@ find_pr_number() {
     printf '%s' "${pr_number}"
 }
 
+wait_for_pr_checks() {
+    local pr_number="$1"
+    local max_attempts=30
+    local sleep_seconds=10
+    local attempt=1
+    local check_count
+
+    while [ "${attempt}" -le "${max_attempts}" ]; do
+        check_count="$(gh pr checks "${pr_number}" --json name --jq 'length' 2>/dev/null || true)"
+
+        if [[ "${check_count}" =~ ^[0-9]+$ ]] && [ "${check_count}" -gt 0 ]; then
+            echo "[OK] PR checks are registered (${check_count})."
+            return 0
+        fi
+
+        echo "[OK] PR checks are not registered yet. Waiting ${sleep_seconds}s (${attempt}/${max_attempts})..."
+        sleep "${sleep_seconds}"
+        attempt=$((attempt + 1))
+    done
+
+    echo "[FAIL] Timed out waiting for PR checks to register for PR #${pr_number}." >&2
+    echo "       Try: gh pr checks ${pr_number} --watch" >&2
+    return 1
+}
+
 print_candidate_next_steps() {
     local main_sha="$1"
 
     cat <<NEXT
-[8/8] Candidate QA next step
+[9/9] Candidate QA next step
 Main commit: ${main_sha}
 
 Use ~/fastsell-install as an example setup workspace:
@@ -105,7 +130,7 @@ main() {
     root="$(repo_root)"
     cd "${root}"
 
-    echo "[1/8] Checking repo, branch, and GitHub auth"
+    echo "[1/9] Checking repo, branch, and GitHub auth"
     check_auth
 
     local branch
@@ -121,7 +146,7 @@ main() {
         commit_message="${branch}"
     fi
 
-    echo "[2/8] Inspecting local changes"
+    echo "[2/9] Inspecting local changes"
     echo "[OK] git status --short --untracked-files=all:"
     local status_output
     status_output="$(git status --short --untracked-files=all)"
@@ -136,7 +161,7 @@ main() {
     read -r behind_count ahead_count < <(git rev-list --left-right --count origin/main...HEAD)
     echo "[OK] Branch state relative to origin/main: ahead ${ahead_count}, behind ${behind_count}"
 
-    echo "[3/8] Staging and committing changes"
+    echo "[3/9] Staging and committing changes"
     if [ -n "${status_output}" ]; then
         git add .
         git diff --cached --check
@@ -158,26 +183,29 @@ main() {
     fi
     echo "[OK] Branch is ready: ahead ${ahead_count}, behind ${behind_count}"
 
-    echo "[4/8] Pushing branch and creating or reusing pull request"
+    echo "[4/9] Pushing branch and creating or reusing pull request"
     echo "[OK] Pushing current branch to origin"
     git push -u origin "${branch}"
 
-    bash scripts/release/create_pull_req.sh
+    FASTSELL_SKIP_PR_HELPER_PUSH=1 bash scripts/release/create_pull_req.sh
 
     local pr_number
     pr_number="$(find_pr_number)"
     echo "[OK] Using PR #${pr_number}"
 
-    echo "[5/8] Watching PR checks"
+    echo "[5/9] Waiting for PR checks to register"
+    wait_for_pr_checks "${pr_number}"
+
+    echo "[6/9] Watching PR checks"
     if ! gh pr checks "${pr_number}" --watch; then
         echo "[FAIL] Pull request checks did not pass. Not merging." >&2
         exit 1
     fi
 
-    echo "[6/8] Squash merging pull request"
+    echo "[7/9] Squash merging pull request"
     bash scripts/release/squash_merge_pull_req.sh "${pr_number}" --yes
 
-    echo "[7/8] Updating local main"
+    echo "[8/9] Updating local main"
     git switch main
     git pull --ff-only origin main
 
