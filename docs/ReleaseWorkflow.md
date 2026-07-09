@@ -180,7 +180,7 @@ The helper:
 - downloads the `fastsell-candidate-<full_git_sha>` artifact after success
 - stores the artifact under `~/fastsell-install/dev_only/candidates/<full_git_sha>/`
 - prints the candidate manifest and image refs
-- asks before applying candidate setup-bundle files into the setup workspace
+- applies candidate setup-bundle files into the setup workspace
 - preserves `~/fastsell-install/.env` and `~/fastsell-install/dev_only/`
 - does not touch runtime data directly
 - does not run `update.sh`
