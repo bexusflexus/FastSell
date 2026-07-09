@@ -4,14 +4,14 @@ set -euo pipefail
 usage() {
     cat <<'USAGE'
 Usage:
-  fetch_candidate_bundle.sh --install-root <path>
+  fetch_candidate_bundle.sh --setup-workspace <path>
 
-Copies dev_only/fetch_candidate_bundle.sh into an existing FastSell install root.
-Run the copied helper from <install-root>/dev_only on the staging host.
+Copies dev_only/fetch_candidate_bundle.sh into an existing FastSell setup workspace.
+Run the copied helper from <setup-workspace>/dev_only on the staging host.
 USAGE
 }
 
-INSTALL_ROOT=""
+SETUP_WORKSPACE=""
 
 require_cmd() {
     local cmd="$1"
@@ -28,9 +28,9 @@ repo_root() {
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --install-root)
-                [ "$#" -ge 2 ] || { echo "[FAIL] --install-root requires a path." >&2; exit 1; }
-                INSTALL_ROOT="$2"
+            --setup-workspace)
+                [ "$#" -ge 2 ] || { echo "[FAIL] --setup-workspace requires a path." >&2; exit 1; }
+                SETUP_WORKSPACE="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -46,23 +46,23 @@ parse_args() {
     done
 }
 
-validate_install_root() {
+validate_setup_workspace() {
     local root="$1"
 
     if [ -z "${root}" ]; then
-        echo "[FAIL] --install-root is required." >&2
+        echo "[FAIL] --setup-workspace is required." >&2
         exit 1
     fi
 
     if [ ! -d "${root}" ]; then
-        echo "[FAIL] Install root does not exist: ${root}" >&2
+        echo "[FAIL] Setup workspace does not exist: ${root}" >&2
         exit 1
     fi
 
     if [ ! -f "${root}/docker-compose.yml" ] ||
         [ ! -f "${root}/.env.example" ] ||
         [ ! -f "${root}/setup/linux/update.sh" ]; then
-        echo "[FAIL] Install root does not look like a FastSell install tree: ${root}" >&2
+        echo "[FAIL] Setup workspace does not look like a FastSell setup-bundle tree: ${root}" >&2
         echo "       Expected docker-compose.yml, .env.example, and setup/linux/update.sh." >&2
         exit 1
     fi
@@ -73,17 +73,17 @@ main() {
     require_cmd git
 
     cd "$(repo_root)"
-    validate_install_root "${INSTALL_ROOT}"
+    validate_setup_workspace "${SETUP_WORKSPACE}"
 
-    mkdir -p "${INSTALL_ROOT}/dev_only"
-    cp -p "dev_only/fetch_candidate_bundle.sh" "${INSTALL_ROOT}/dev_only/fetch_candidate_bundle.sh"
+    mkdir -p "${SETUP_WORKSPACE}/dev_only"
+    cp -p "dev_only/fetch_candidate_bundle.sh" "${SETUP_WORKSPACE}/dev_only/fetch_candidate_bundle.sh"
 
     cat <<NEXT
 [OK] Installed candidate helper:
-     ${INSTALL_ROOT}/dev_only/fetch_candidate_bundle.sh
+     ${SETUP_WORKSPACE}/dev_only/fetch_candidate_bundle.sh
 
 [OK] On the staging host, run:
-     cd ${INSTALL_ROOT}/dev_only
+     cd ${SETUP_WORKSPACE}/dev_only
      ./fetch_candidate_bundle.sh <full-sha>
 NEXT
 }

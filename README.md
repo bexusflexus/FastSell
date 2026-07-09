@@ -20,19 +20,22 @@ Prerequisites: Linux host, Docker Engine, Docker Compose plugin, Bash, and enoug
 Normal users install from the FastSell setup bundle published with each GitHub Release. The setup bundle contains only the files needed to install, update, uninstall, and run FastSell from prebuilt GHCR images.
 
 ```bash
-# Download fastsell-setup-v0.1.0.zip or fastsell-setup-v0.1.0.tar.gz
-# from https://github.com/bexusflexus/FastSell/releases
-unzip fastsell-setup-v0.1.0.zip
-# or: tar -xzf fastsell-setup-v0.1.0.tar.gz
-cd fastsell-setup-v0.1.0
+mkdir -p ~/fastsell-install
+cd ~/fastsell-install
+curl -L -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+tar -xzf fastsell-setup.tar.gz --strip-components=1
+rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/install.sh
 ```
 
-The installer creates `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, pulls prebuilt GHCR images, applies the database baseline, and starts the stack.
+`~/fastsell-install` is the reusable setup workspace. The installer creates the runtime root at `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, pulls prebuilt GHCR images, applies the database baseline, and starts the stack.
 
 Update from a newer setup bundle after taking a backup:
 
 ```bash
+cd ~/fastsell-install
+# download and extract the newer setup bundle here, then:
 sudo bash setup/linux/update.sh
 ```
 

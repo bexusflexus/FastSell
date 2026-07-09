@@ -10,11 +10,11 @@ usage() {
 Usage:
   fetch_candidate_bundle.sh <full-sha> [--yes]
 
-Run this from an existing FastSell install tree:
-  cd <install-root>/dev_only
+Run this from an existing FastSell setup workspace:
+  cd <setup-workspace>/dev_only
   ./fetch_candidate_bundle.sh <full-sha>
 
-The script downloads and applies candidate setup-bundle files to <install-root>.
+The script downloads and applies candidate setup-bundle files to <setup-workspace>.
 It does not run setup/linux/update.sh.
 USAGE
 }
@@ -83,25 +83,25 @@ script_dir() {
     cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P
 }
 
-validate_install_root() {
+validate_setup_workspace() {
     local dev_only_dir="$1"
-    local install_root="$2"
+    local setup_workspace="$2"
 
     if [ "$(basename -- "${BASH_SOURCE[0]}")" != "fetch_candidate_bundle.sh" ]; then
-        echo "[FAIL] This script must be named <install-root>/dev_only/fetch_candidate_bundle.sh." >&2
+        echo "[FAIL] This script must be named <setup-workspace>/dev_only/fetch_candidate_bundle.sh." >&2
         exit 1
     fi
 
     if [ "$(basename -- "${dev_only_dir}")" != "dev_only" ]; then
-        echo "[FAIL] This script must live at <install-root>/dev_only/fetch_candidate_bundle.sh." >&2
+        echo "[FAIL] This script must live at <setup-workspace>/dev_only/fetch_candidate_bundle.sh." >&2
         echo "       Current directory: ${dev_only_dir}" >&2
         exit 1
     fi
 
-    if [ ! -f "${install_root}/docker-compose.yml" ] ||
-        [ ! -f "${install_root}/.env.example" ] ||
-        [ ! -f "${install_root}/setup/linux/update.sh" ]; then
-        echo "[FAIL] Parent directory does not look like a FastSell install root: ${install_root}" >&2
+    if [ ! -f "${setup_workspace}/docker-compose.yml" ] ||
+        [ ! -f "${setup_workspace}/.env.example" ] ||
+        [ ! -f "${setup_workspace}/setup/linux/update.sh" ]; then
+        echo "[FAIL] Parent directory does not look like a FastSell setup workspace: ${setup_workspace}" >&2
         echo "       Expected docker-compose.yml, .env.example, and setup/linux/update.sh." >&2
         exit 1
     fi
@@ -190,45 +190,45 @@ print_manifest_and_refs() {
 
 apply_candidate_bundle() {
     local bundle_dir="$1"
-    local install_root="$2"
+    local setup_workspace="$2"
 
     echo "[OK] Candidate bundle source: ${bundle_dir}"
-    echo "[OK] Install root destination: ${install_root}"
-    confirm "Apply candidate setup-bundle files to this install root?"
+    echo "[OK] Setup workspace destination: ${setup_workspace}"
+    confirm "Apply candidate setup-bundle files to this setup workspace?"
 
     rsync -a \
         --exclude '/.env' \
         --exclude '/dev_only/' \
         "${bundle_dir}/" \
-        "${install_root}/"
+        "${setup_workspace}/"
 }
 
 verify_applied_candidate() {
-    local install_root="$1"
+    local setup_workspace="$1"
     local sha="$2"
 
-    if ! rg -q "api-sha-${sha}" "${install_root}/.env.example"; then
-        echo "[FAIL] Install root .env.example does not contain api-sha-${sha}." >&2
+    if ! rg -q "api-sha-${sha}" "${setup_workspace}/.env.example"; then
+        echo "[FAIL] Setup workspace .env.example does not contain api-sha-${sha}." >&2
         exit 1
     fi
-    if ! rg -q "web-sha-${sha}" "${install_root}/.env.example"; then
-        echo "[FAIL] Install root .env.example does not contain web-sha-${sha}." >&2
+    if ! rg -q "web-sha-${sha}" "${setup_workspace}/.env.example"; then
+        echo "[FAIL] Setup workspace .env.example does not contain web-sha-${sha}." >&2
         exit 1
     fi
-    if ! rg -q "system-agent-sha-${sha}" "${install_root}/.env.example"; then
-        echo "[FAIL] Install root .env.example does not contain system-agent-sha-${sha}." >&2
-        exit 1
-    fi
-
-    if ! rg -q 'FASTSELL_API_IMAGE' "${install_root}/docker-compose.yml" ||
-        ! rg -q 'FASTSELL_WEB_IMAGE' "${install_root}/docker-compose.yml" ||
-        ! rg -q 'FASTSELL_SYSTEM_AGENT_IMAGE' "${install_root}/docker-compose.yml"; then
-        echo "[FAIL] Install root docker-compose.yml does not reference the expected FASTSELL_*_IMAGE variables." >&2
+    if ! rg -q "system-agent-sha-${sha}" "${setup_workspace}/.env.example"; then
+        echo "[FAIL] Setup workspace .env.example does not contain system-agent-sha-${sha}." >&2
         exit 1
     fi
 
-    if [ ! -f "${install_root}/setup/linux/update.sh" ]; then
-        echo "[FAIL] Install root setup/linux/update.sh is missing after applying candidate bundle." >&2
+    if ! rg -q 'FASTSELL_API_IMAGE' "${setup_workspace}/docker-compose.yml" ||
+        ! rg -q 'FASTSELL_WEB_IMAGE' "${setup_workspace}/docker-compose.yml" ||
+        ! rg -q 'FASTSELL_SYSTEM_AGENT_IMAGE' "${setup_workspace}/docker-compose.yml"; then
+        echo "[FAIL] Setup workspace docker-compose.yml does not reference the expected FASTSELL_*_IMAGE variables." >&2
+        exit 1
+    fi
+
+    if [ ! -f "${setup_workspace}/setup/linux/update.sh" ]; then
+        echo "[FAIL] Setup workspace setup/linux/update.sh is missing after applying candidate bundle." >&2
         exit 1
     fi
 }
@@ -243,10 +243,10 @@ main() {
     require_cmd sed
 
     local dev_only_dir
-    local install_root
+    local setup_workspace
     dev_only_dir="$(script_dir)"
-    install_root="$(cd -- "${dev_only_dir}/.." && pwd -P)"
-    validate_install_root "${dev_only_dir}" "${install_root}"
+    setup_workspace="$(cd -- "${dev_only_dir}/.." && pwd -P)"
+    validate_setup_workspace "${dev_only_dir}" "${setup_workspace}"
 
     local run_id
     run_id="$(resolve_successful_run_id "${SHA}")"
@@ -280,13 +280,13 @@ main() {
     tar -xzf "${tarball}" -C "${extract_dir}"
     validate_extracted_bundle "${bundle_dir}"
     print_manifest_and_refs "${manifest}"
-    apply_candidate_bundle "${bundle_dir}" "${install_root}"
-    verify_applied_candidate "${install_root}" "${SHA}"
+    apply_candidate_bundle "${bundle_dir}" "${setup_workspace}"
+    verify_applied_candidate "${setup_workspace}" "${SHA}"
 
     cat <<NEXT
-[OK] Candidate files were applied to ${install_root}.
+[OK] Candidate files were applied to ${setup_workspace}.
 [OK] Next step:
-     cd ${install_root}
+     cd ${setup_workspace}
      sudo bash setup/linux/update.sh
 NEXT
 }
