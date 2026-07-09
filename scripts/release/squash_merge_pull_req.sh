@@ -133,7 +133,7 @@ main() {
 
     run_pr_check_gate "${PR}"
 
-    confirm "Squash merge PR ${PR}?"
+    confirm "Squash merge PR #${PR} into main?"
 
     local merge_args
     merge_args=(--squash)

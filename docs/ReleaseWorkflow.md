@@ -5,23 +5,31 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
 ## Normal Flow
 
 1. Create a feature branch locally.
-2. Commit and push the branch.
-3. Open a pull request:
+2. Make your changes.
+3. Run the normal single-maintainer PR workflow:
+
+   ```bash
+   ./scripts/release/do_pr.sh "Commit message"
+   ```
+
+   If no commit message is provided, the current branch name is used:
+
+   ```bash
+   ./scripts/release/do_pr.sh
+   ```
+
+   This runs `git add .`, commits, pushes the current branch, creates or reuses a pull request, watches checks, squash merges after checks pass, updates local `main`, and prints candidate QA instructions. No manual `git push origin` is needed when using `do_pr.sh`. If the branch already has a pull request, local commits are still pushed before checks and merge.
+
+   Advanced/manual primitives remain available:
 
    ```bash
    ./scripts/release/create_pull_req.sh
-   ```
-
-4. Wait for automated PR checks.
-5. Squash merge the PR:
-
-   ```bash
    ./scripts/release/squash_merge_pull_req.sh <pr-number>
    ```
 
-   If you are on the PR branch, the PR number can be omitted.
+   Use the lower-level scripts when you want a more review-oriented or enterprise-friendly flow where PR creation, GitHub review, and merge are separate steps.
 
-6. The `Publish Images` workflow runs on the resulting `main` commit and publishes candidate images:
+4. The `Publish Images` workflow runs on the resulting `main` commit and publishes candidate images:
 
    ```text
    ghcr.io/<owner>/fastsell:api-sha-<full_git_sha>
@@ -29,8 +37,8 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ghcr.io/<owner>/fastsell:system-agent-sha-<full_git_sha>
    ```
 
-7. The same workflow uploads a candidate setup bundle and candidate release manifest as GitHub Actions artifacts.
-8. Install the candidate helper into the staging setup workspace if it is not already present:
+5. The same workflow uploads a candidate setup bundle and candidate release manifest as GitHub Actions artifacts.
+6. Install the candidate helper into the staging setup workspace if it is not already present:
 
    ```bash
    ./scripts/release/fetch_candidate_bundle.sh --setup-workspace ~/fastsell-install
@@ -46,14 +54,14 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    sudo bash setup/linux/update.sh
    ```
 
-9. Test the candidate once on staging.
-10. If QA fails, create a revert PR:
+7. Test the candidate once on staging.
+8. If QA fails, create a revert PR:
 
     ```bash
     ./scripts/release/fail_qa.sh <full_git_sha>
     ```
 
-11. If QA succeeds, promote the tested candidate:
+9. If QA succeeds, promote the tested candidate:
 
     ```bash
     ./scripts/release/success_qa.sh <full_git_sha>
