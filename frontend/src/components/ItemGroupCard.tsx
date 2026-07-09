@@ -32,7 +32,7 @@ export function ItemGroupCard({
         <div className="grid flex-1 gap-3 sm:grid-cols-[1fr_1.2fr]">
           <div>
             <label className="text-xs font-semibold uppercase tracking-[0.18em] text-rack-glass" htmlFor={`${group.clientGroupId}-title`}>
-              Group label
+              Item label
             </label>
             <input
               id={`${group.clientGroupId}-title`}
@@ -43,7 +43,7 @@ export function ItemGroupCard({
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-[0.18em] text-rack-glass" htmlFor={`${group.clientGroupId}-notes`}>
-              Group notes
+              Item notes
             </label>
             <input
               id={`${group.clientGroupId}-notes`}
@@ -60,7 +60,7 @@ export function ItemGroupCard({
           disabled={!canRemove}
           className="rounded-md border border-red-400/30 px-3 py-2 text-sm font-medium text-red-200 transition enabled:hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Remove group
+          Remove item
         </button>
       </div>
 
@@ -73,7 +73,7 @@ export function ItemGroupCard({
 
         {group.images.length === 0 ? (
           <div className="mt-4 rounded-md border border-rack-steel/28 bg-rack-soot/70 px-4 py-5 text-sm text-stone-400">
-            No images in this group yet.
+            No images for this item yet.
           </div>
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
