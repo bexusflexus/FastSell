@@ -171,6 +171,7 @@ cd ~/fastsell-install/dev_only
 The helper:
 
 - locates the `publish-images.yml` workflow run for the full SHA
+- waits briefly if the workflow run is not visible yet
 - offers to watch the run if it is queued or in progress
 - downloads the `fastsell-candidate-<full_git_sha>` artifact after success
 - stores the artifact under `~/fastsell-install/dev_only/candidates/<full_git_sha>/`

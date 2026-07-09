@@ -51,11 +51,18 @@ validate_sha() {
     fi
 }
 
-parse_args() {
+parse_cli() {
     if [ "$#" -lt 1 ]; then
         usage >&2
         exit 1
     fi
+
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+    esac
 
     SHA="$1"
     shift
@@ -71,7 +78,7 @@ parse_args() {
                 exit 0
                 ;;
             *)
-                echo "[FAIL] Unknown argument: $1" >&2
+                echo "[FAIL] Unknown option or value: $1" >&2
                 usage >&2
                 exit 1
                 ;;
@@ -107,6 +114,14 @@ validate_setup_workspace() {
     fi
 }
 
+check_gh_auth() {
+    if ! gh auth status --hostname github.com >/dev/null 2>&1; then
+        echo "[FAIL] GitHub CLI is not authenticated." >&2
+        echo "       Run: gh auth login --hostname github.com --git-protocol ssh --web" >&2
+        exit 1
+    fi
+}
+
 run_info_for_sha() {
     local sha="$1"
 
@@ -119,6 +134,30 @@ run_info_for_sha() {
         --jq "map(select(.headSha == \"${sha}\")) | first | if . == null then \"\" else [.databaseId, .status, (.conclusion // \"\")] | @tsv end"
 }
 
+wait_for_run_info_for_sha() {
+    local sha="$1"
+    local max_attempts=30
+    local sleep_seconds=10
+    local attempt=1
+    local run_info
+
+    while [ "${attempt}" -le "${max_attempts}" ]; do
+        run_info="$(run_info_for_sha "${sha}" 2>/dev/null || true)"
+        if [ -n "${run_info}" ]; then
+            printf '%s' "${run_info}"
+            return 0
+        fi
+
+        echo "[OK] Publish Images run for ${sha} is not visible yet. Waiting ${sleep_seconds}s (${attempt}/${max_attempts})..." >&2
+        sleep "${sleep_seconds}"
+        attempt=$((attempt + 1))
+    done
+
+    echo "[FAIL] Could not find a Publish Images workflow run on main for ${sha} after waiting." >&2
+    echo "       Try: gh run list --workflow publish-images.yml --branch main --limit 5" >&2
+    return 1
+}
+
 resolve_successful_run_id() {
     local sha="$1"
     local run_info
@@ -126,11 +165,7 @@ resolve_successful_run_id() {
     local run_status
     local run_conclusion
 
-    run_info="$(run_info_for_sha "${sha}")"
-    if [ -z "${run_info}" ]; then
-        echo "[FAIL] Could not find a Publish Images workflow run on main for ${sha}." >&2
-        exit 1
-    fi
+    run_info="$(wait_for_run_info_for_sha "${sha}")"
 
     IFS=$'\t' read -r run_id run_status run_conclusion <<< "${run_info}"
     case "${run_status}" in
@@ -185,7 +220,7 @@ print_manifest_and_refs() {
     echo "[OK] Candidate manifest: ${manifest}"
     sed -n '1,220p' "${manifest}"
     echo "[OK] Candidate image refs:"
-    rg -n '"ref":' "${manifest}" || true
+    grep -n '"ref":' "${manifest}" || true
 }
 
 apply_candidate_bundle() {
@@ -207,22 +242,22 @@ verify_applied_candidate() {
     local setup_workspace="$1"
     local sha="$2"
 
-    if ! rg -q "api-sha-${sha}" "${setup_workspace}/.env.example"; then
+    if ! grep -q "api-sha-${sha}" "${setup_workspace}/.env.example"; then
         echo "[FAIL] Setup workspace .env.example does not contain api-sha-${sha}." >&2
         exit 1
     fi
-    if ! rg -q "web-sha-${sha}" "${setup_workspace}/.env.example"; then
+    if ! grep -q "web-sha-${sha}" "${setup_workspace}/.env.example"; then
         echo "[FAIL] Setup workspace .env.example does not contain web-sha-${sha}." >&2
         exit 1
     fi
-    if ! rg -q "system-agent-sha-${sha}" "${setup_workspace}/.env.example"; then
+    if ! grep -q "system-agent-sha-${sha}" "${setup_workspace}/.env.example"; then
         echo "[FAIL] Setup workspace .env.example does not contain system-agent-sha-${sha}." >&2
         exit 1
     fi
 
-    if ! rg -q 'FASTSELL_API_IMAGE' "${setup_workspace}/docker-compose.yml" ||
-        ! rg -q 'FASTSELL_WEB_IMAGE' "${setup_workspace}/docker-compose.yml" ||
-        ! rg -q 'FASTSELL_SYSTEM_AGENT_IMAGE' "${setup_workspace}/docker-compose.yml"; then
+    if ! grep -q 'FASTSELL_API_IMAGE' "${setup_workspace}/docker-compose.yml" ||
+        ! grep -q 'FASTSELL_WEB_IMAGE' "${setup_workspace}/docker-compose.yml" ||
+        ! grep -q 'FASTSELL_SYSTEM_AGENT_IMAGE' "${setup_workspace}/docker-compose.yml"; then
         echo "[FAIL] Setup workspace docker-compose.yml does not reference the expected FASTSELL_*_IMAGE variables." >&2
         exit 1
     fi
@@ -234,13 +269,14 @@ verify_applied_candidate() {
 }
 
 main() {
-    parse_args "$@"
+    parse_cli "$@"
     validate_sha "${SHA}"
     require_cmd gh
     require_cmd tar
-    require_cmd rg
+    require_cmd grep
     require_cmd rsync
     require_cmd sed
+    check_gh_auth
 
     local dev_only_dir
     local setup_workspace
