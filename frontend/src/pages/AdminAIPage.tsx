@@ -94,7 +94,6 @@ export function AdminAIPage() {
   const [settings, setSettings] = useState<AISettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
@@ -155,7 +154,6 @@ export function AdminAIPage() {
   const handleEdit = async (providerId: string) => {
     setBusyAction(`edit:${providerId}`);
     setActionError(null);
-    setMessage(null);
 
     try {
       const response = await getAIProvider(providerId);
@@ -178,7 +176,6 @@ export function AdminAIPage() {
         temperature: provider.temperature != null ? String(provider.temperature) : '',
         clearApiKey: false,
       });
-      setMessage(`Editing provider "${provider.name}".`);
     } catch (error) {
       console.error('Failed to load provider for edit', error);
       setActionError(errorMessage(error, 'Failed to load AI provider.'));
@@ -196,17 +193,14 @@ export function AdminAIPage() {
 
     setBusyAction(formMode === 'create' ? 'create' : `save:${editingProviderId}`);
     setActionError(null);
-    setMessage(null);
 
     try {
       if (formMode === 'create') {
         const payload = buildCreateInput(form);
-        const response = await createAIProvider(payload);
-        setMessage(`Created AI provider "${response.provider.name}".`);
+        await createAIProvider(payload);
       } else if (editingProviderId) {
         const payload = buildUpdateInput(form);
-        const response = await updateAIProvider(editingProviderId, payload);
-        setMessage(`Updated AI provider "${response.provider.name}".`);
+        await updateAIProvider(editingProviderId, payload);
       }
 
       resetForm();
@@ -226,14 +220,12 @@ export function AdminAIPage() {
 
     setBusyAction(`delete:${provider.id}`);
     setActionError(null);
-    setMessage(null);
 
     try {
       await deleteAIProvider(provider.id);
       if (editingProviderId === provider.id) {
         resetForm();
       }
-      setMessage(`Deleted AI provider "${provider.name}".`);
       await loadData();
     } catch (error) {
       console.error('Failed to delete AI provider', error);
@@ -246,11 +238,9 @@ export function AdminAIPage() {
   const handleSetActive = async (provider: AIProviderConfig) => {
     setBusyAction(`active:${provider.id}`);
     setActionError(null);
-    setMessage(null);
 
     try {
-      const response = await setActiveAIProvider(provider.id);
-      setMessage(`Active AI provider set to "${response.provider.name}".`);
+      await setActiveAIProvider(provider.id);
       await loadData();
     } catch (error) {
       console.error('Failed to set active AI provider', error);
@@ -263,11 +253,9 @@ export function AdminAIPage() {
   const handleEnableToggle = async (provider: AIProviderConfig) => {
     setBusyAction(`enable:${provider.id}`);
     setActionError(null);
-    setMessage(null);
 
     try {
-      const response = await updateAIProvider(provider.id, { enabled: !provider.enabled });
-      setMessage(response.provider.enabled ? `Enabled "${response.provider.name}".` : `Disabled "${response.provider.name}".`);
+      await updateAIProvider(provider.id, { enabled: !provider.enabled });
       await loadData();
     } catch (error) {
       console.error('Failed to update AI provider enabled state', error);
@@ -280,12 +268,10 @@ export function AdminAIPage() {
   const handleTest = async (provider: AIProviderConfig) => {
     setBusyAction(`test:${provider.id}`);
     setActionError(null);
-    setMessage(null);
 
     try {
       const result = await testAIProvider(provider.id);
       setLastTestResult(result);
-      setMessage(result.status === 'success' ? `Test succeeded for "${provider.name}".` : `Test failed for "${provider.name}".`);
       await loadData();
     } catch (error) {
       console.error('Failed to test AI provider', error);
@@ -298,12 +284,10 @@ export function AdminAIPage() {
   const handleDisableAI = async () => {
     setBusyAction('settings:disable');
     setActionError(null);
-    setMessage(null);
 
     try {
       const response = await updateAISettings({ ai_assist_enabled: false });
       setSettings(response.settings);
-      setMessage('AI assist disabled. No provider is active.');
       await loadData();
     } catch (error) {
       console.error('Failed to disable AI assist', error);
@@ -319,7 +303,6 @@ export function AdminAIPage() {
         <p className="text-sm text-stone-300">
           Configure Gemini, OpenAI, or Ollama providers. Only one provider can be active at a time.
         </p>
-        {message ? <p className="mt-3 rounded-md border border-signal-green/35 bg-signal-green/10 px-3 py-2 text-sm text-green-100">{message}</p> : null}
         {actionError ? <p className="mt-3 rounded-md border border-red-400/35 bg-red-950/30 px-3 py-2 text-sm text-red-100">{actionError}</p> : null}
         {loadError ? <p className="mt-3 rounded-md border border-red-400/35 bg-red-950/30 px-3 py-2 text-sm text-red-100">{loadError}</p> : null}
       </Panel>

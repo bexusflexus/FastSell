@@ -388,10 +388,10 @@ export function UploadPage() {
       messages.push('Select an inventory group.');
     }
     if (draft.groups.length === 0) {
-      messages.push('Add at least one item group.');
+      messages.push('Add at least one inventory item.');
     }
     if (!hasImages) {
-      messages.push('Add at least one image to any group.');
+      messages.push('Add at least one image to any inventory item.');
     }
 
     return messages;
@@ -643,7 +643,7 @@ export function UploadPage() {
   };
 
   const handleResetClick = () => {
-    if (!hasDirtyDraft || window.confirm('Clear this upload page and discard selected photos, groups, and form data?')) {
+    if (!hasDirtyDraft || window.confirm('Clear this upload page and discard selected photos, inventory items, and form data?')) {
       resetUploadSession();
     }
   };
@@ -706,15 +706,15 @@ export function UploadPage() {
       </Panel>
 
       <Panel
-        title="Item groups"
-        eyebrow="Grouped photo cards"
+        title="Inventory items"
+        eyebrow="Inventory item photo cards"
         action={
           <button
             type="button"
             onClick={addGroup}
             className="rounded-md border border-amberline-300/35 bg-[linear-gradient(180deg,#f0522a,#8c3729)] px-4 py-2 text-sm font-semibold text-stone-50 shadow-glow transition hover:border-amberline-300/60 hover:brightness-110"
           >
-            Add item group
+            Add Inventory Item
           </button>
         }
       >
