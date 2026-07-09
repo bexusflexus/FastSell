@@ -27,21 +27,6 @@ require_cmd() {
     fi
 }
 
-confirm() {
-    local prompt="$1"
-    local answer
-
-    if [ "${YES}" -eq 1 ]; then
-        return
-    fi
-
-    read -r -p "${prompt} [y/N] " answer
-    case "${answer}" in
-        y|Y|yes|YES) ;;
-        *) echo "[FAIL] Cancelled."; exit 1 ;;
-    esac
-}
-
 validate_sha() {
     local sha="$1"
 
@@ -170,8 +155,7 @@ resolve_successful_run_id() {
     IFS=$'\t' read -r run_id run_status run_conclusion <<< "${run_info}"
     case "${run_status}" in
         queued|in_progress|waiting|requested|pending)
-            echo "[OK] Publish Images run ${run_id} is ${run_status}." >&2
-            confirm "Watch this run with gh run watch?"
+            echo "[OK] Publish Images run ${run_id} is ${run_status}. Watching until it completes." >&2
             gh run watch "${run_id}" --repo "${FASTSELL_GITHUB_REPO}" >&2
             run_info="$(run_info_for_sha "${sha}")"
             IFS=$'\t' read -r run_id run_status run_conclusion <<< "${run_info}"
@@ -193,7 +177,7 @@ prepare_candidate_dirs() {
     local candidate_dir="$1"
 
     if [ -e "${candidate_dir}" ]; then
-        confirm "Replace existing candidate cache ${candidate_dir}?"
+        echo "[OK] Replacing existing candidate cache ${candidate_dir}"
         rm -rf -- "${candidate_dir}"
     fi
 
@@ -229,7 +213,7 @@ apply_candidate_bundle() {
 
     echo "[OK] Candidate bundle source: ${bundle_dir}"
     echo "[OK] Setup workspace destination: ${setup_workspace}"
-    confirm "Apply candidate setup-bundle files to this setup workspace?"
+    echo "[OK] Applying candidate setup-bundle files to this setup workspace."
 
     rsync -a \
         --exclude '/.env' \
