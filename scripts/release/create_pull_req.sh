@@ -38,8 +38,12 @@ main() {
         exit 1
     fi
 
-    echo "[OK] Pushing current branch to origin/${branch}"
-    git push -u origin "${branch}"
+    if [ "${FASTSELL_SKIP_PR_HELPER_PUSH:-0}" = "1" ]; then
+        echo "[OK] Branch was already pushed by caller."
+    else
+        echo "[OK] Pushing current branch to origin/${branch}"
+        git push -u origin "${branch}"
+    fi
 
     if existing_url="$(gh pr view --json url --jq .url 2>/dev/null)"; then
         echo "[OK] Pull request already exists: ${existing_url}"
