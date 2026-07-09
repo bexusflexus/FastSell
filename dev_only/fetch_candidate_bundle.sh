@@ -107,6 +107,35 @@ check_gh_auth() {
     fi
 }
 
+refresh_helper_from_candidate() {
+    local dev_only_dir="$1"
+    shift
+
+    local helper_path
+    local tmp
+    helper_path="${dev_only_dir}/fetch_candidate_bundle.sh"
+    tmp="$(mktemp)"
+
+    if ! gh api \
+        -H "Accept: application/vnd.github.raw" \
+        "repos/${FASTSELL_GITHUB_REPO}/contents/dev_only/fetch_candidate_bundle.sh?ref=${SHA}" > "${tmp}"; then
+        rm -f -- "${tmp}"
+        echo "[FAIL] Could not download dev_only/fetch_candidate_bundle.sh from ${FASTSELL_GITHUB_REPO} at ${SHA}." >&2
+        exit 1
+    fi
+
+    if cmp -s "${helper_path}" "${tmp}"; then
+        rm -f -- "${tmp}"
+        echo "[OK] Candidate helper is already current for ${SHA}."
+        return
+    fi
+
+    echo "[OK] Refreshing candidate helper from ${FASTSELL_GITHUB_REPO}@${SHA}."
+    mv -- "${tmp}" "${helper_path}"
+    chmod +x "${helper_path}"
+    exec "${helper_path}" "$@"
+}
+
 run_info_for_sha() {
     local sha="$1"
 
@@ -265,6 +294,7 @@ main() {
     local dev_only_dir
     local setup_workspace
     dev_only_dir="$(script_dir)"
+    refresh_helper_from_candidate "${dev_only_dir}" "$@"
     setup_workspace="$(cd -- "${dev_only_dir}/.." && pwd -P)"
     validate_setup_workspace "${dev_only_dir}" "${setup_workspace}"
 

@@ -38,7 +38,7 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ```
 
 5. The same workflow uploads a candidate setup bundle and candidate release manifest as GitHub Actions artifacts.
-6. Install the candidate helper into the staging setup workspace if it is not already present. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh` and is not included in normal production setup bundles.
+6. Install the candidate helper into the staging setup workspace once if it is not already present. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh`, is not included in normal production setup bundles, and self-refreshes from that same path at the requested candidate SHA before doing candidate QA work.
 
    ```bash
    mkdir -p ~/fastsell-install/dev_only
@@ -153,7 +153,7 @@ docker/
 docs/
 ```
 
-Developer-only candidate tooling lives under `~/fastsell-install/dev_only/`. Normal production setup bundles do not include `dev_only`. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh`.
+Developer-only candidate tooling lives under `~/fastsell-install/dev_only/`. Normal production setup bundles do not include `dev_only`, and candidate bundle application preserves the existing `dev_only` directory. The real helper is source-controlled at `dev_only/fetch_candidate_bundle.sh`.
 
 To install the helper into an existing staging setup workspace from a repo checkout:
 
@@ -164,6 +164,8 @@ chmod +x ~/fastsell-install/dev_only/fetch_candidate_bundle.sh
 ```
 
 If your repo checkout and staging host are different machines, copy `dev_only/fetch_candidate_bundle.sh` to the staging setup workspace with `scp` or `rsync`.
+
+This manual copy is only needed to bootstrap a staging setup workspace. On each candidate run, the helper downloads `dev_only/fetch_candidate_bundle.sh` from the exact requested candidate SHA, refreshes itself if needed, and restarts itself before continuing.
 
 On the staging host, run:
 
