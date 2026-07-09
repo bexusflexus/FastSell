@@ -11,82 +11,101 @@ FastSell v0.1 installs from the FastSell setup bundle. Normal users do not need 
 
 ## Install
 
-1) Create a landing spot for the install program.  
-  ```bash
-  mkdir -p ~/fastsell-install
-  cd ~/fastsell-install
-  ```
+`~/fastsell-install` is the setup workspace where you download and extract setup bundle files. Reuse this same folder for future updates.
 
-2) Download the setup bundle for the release you want from GitHub Releases.  Choose from either the .zip or .tar files.  There are 4 options for downloading (browser, curl, wget, gh).  Pick your favorite and replace version number, if necessary.
+`/srv/fastsell` is the runtime root created by the setup scripts. Runtime config lives at `/srv/fastsell/config/.env`, and runtime data lives under `/srv/fastsell/data`.
 
-  #### Option 1: curl
+1) Create the setup workspace.
 
-  Tarball  
-  ```bash
-  curl -L -O https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
-  ```
-  Zip
-  ```bash
-  curl -L -O https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
-  ```
-
-  #### Option 2: wget
-
-  Tarball
-  ```bash
-  wget https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
-  ```
-  Zip
-  ```bash
-  wget https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
-  ```
-
-  #### Option 3: GitHub CLI
-
-  Tarball
-  ```bash
-  gh release download v0.1.0 --repo bexusflexus/FastSell --pattern "fastsell-setup-v0.1.0.tar.gz"
-  ```
-  Zip
-  ```bash
-  gh release download v0.1.0 --repo bexusflexus/FastSell --pattern "fastsell-setup-v0.1.0.zip"
-  ```
-
-  #### Option 4: Browser
-
-  Paste into browser address bar:
-  ```text
-  https://github.com/bexusflexus/FastSell/releases
-  ```
-
-3) Extract either archive format:
-
-Tarball
 ```bash
-tar -xzf fastsell-setup-v0.1.0.tar.gz
-```
-OR
-*Use this to delete tarball after extraction
-```bash
-tar -xzf fastsell-setup-v0.1.0.tar.gz && rm -- fastsell-setup-v0.1.0.tar.gz
+mkdir -p ~/fastsell-install
+cd ~/fastsell-install
 ```
 
-Zip file
+2) Download the setup bundle for the release you want from GitHub Releases. The tarball is preferred because it can be extracted directly into the stable setup workspace.
+
+### Option 1: curl
+
+Tarball:
+
 ```bash
-unzip fastsell-setup-v0.1.0.zip
-```
-OR
-*Use this to delete tarball after extraction
-```bash
-unzip fastsell-setup-v0.1.0.zip && rm -- fastsell-setup-v0.1.0.zip
+curl -L -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
 ```
 
-4) Run the installer from the extracted setup directory:
+Zip:
 
-  ```bash
-  cd fastsell-setup-v0.1.0
-  sudo bash setup/linux/install.sh
-  ```
+```bash
+curl -L -o fastsell-setup.zip \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+```
+
+### Option 2: wget
+
+Tarball:
+
+```bash
+wget -O fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.tar.gz
+```
+
+Zip:
+
+```bash
+wget -O fastsell-setup.zip \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.0/fastsell-setup-v0.1.0.zip
+```
+
+### Option 3: GitHub CLI
+
+Tarball:
+
+```bash
+gh release download v0.1.0 --repo bexusflexus/FastSell \
+  --pattern "fastsell-setup-v0.1.0.tar.gz" \
+  --output fastsell-setup.tar.gz
+```
+
+Zip:
+
+```bash
+gh release download v0.1.0 --repo bexusflexus/FastSell \
+  --pattern "fastsell-setup-v0.1.0.zip" \
+  --output fastsell-setup.zip
+```
+
+### Option 4: Browser
+
+Open the GitHub Releases page, download the release archive, and save it in `~/fastsell-install` as `fastsell-setup.tar.gz` or `fastsell-setup.zip`.
+
+```text
+https://github.com/bexusflexus/FastSell/releases
+```
+
+3) Extract into the setup workspace.
+
+Preferred tarball path:
+
+```bash
+tar -xzf fastsell-setup.tar.gz --strip-components=1
+rm -- fastsell-setup.tar.gz
+```
+
+Zip archives contain a top-level folder. If using the zip, extract to a temporary folder and copy that folder's contents into the setup workspace:
+
+```bash
+rm -rf .fastsell-setup-unzip
+mkdir .fastsell-setup-unzip
+unzip fastsell-setup.zip -d .fastsell-setup-unzip
+cp -a .fastsell-setup-unzip/fastsell-setup-*/. .
+rm -rf .fastsell-setup-unzip fastsell-setup.zip
+```
+
+4) Run the installer from the setup workspace:
+
+```bash
+sudo bash setup/linux/install.sh
+```
 
 What the installer does:
 
@@ -123,14 +142,18 @@ PostgreSQL remote database access is intentionally enabled by the bundled Compos
 
 ## Update
 
-Back up FastSell before updating. Then download and extract the newer setup bundle from GitHub Releases.
+Back up FastSell before updating. Then reuse the same setup workspace and extract the newer setup bundle into it.
 
 ```bash
-cd fastsell-setup-v0.1.1
+cd ~/fastsell-install
+curl -L -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
+tar -xzf fastsell-setup.tar.gz --strip-components=1
+rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/update.sh
 ```
 
-The updater refreshes runtime files from the extracted setup bundle, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
+The updater runs from the setup workspace and refreshes runtime files under `/srv/fastsell`, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It preserves `/srv/fastsell/config/.env` and leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
 
 On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
 

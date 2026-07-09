@@ -6,6 +6,8 @@ FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
 Normal users deploy FastSell from the setup bundle attached to GitHub Releases. The setup bundle contains runtime Compose files, migrations, setup scripts, and user documentation; it does not require a full repository clone.
 
+Use one stable setup workspace, such as `~/fastsell-install`, for extracting setup bundle files and running setup scripts. Reuse that same workspace for updates. The setup workspace is separate from the FastSell runtime root.
+
 ## Compose Stack
 
 `docker-compose.yml` defines:
@@ -16,7 +18,7 @@ Normal users deploy FastSell from the setup bundle attached to GitHub Releases. 
 - `system-agent`
 - `web`
 
-Runtime files live under `/srv/fastsell`:
+Runtime files are installed under `/srv/fastsell`:
 
 ```text
 /srv/fastsell/compose/docker-compose.yml
@@ -80,15 +82,17 @@ Normal inventory setup can run without AI configured, but Whole Scene and AI fea
 
 ## Operations
 
--Initial Install from an extracted setup bundle:
+-Initial install from the setup workspace:
 
 ```bash
+cd ~/fastsell-install
 sudo bash setup/linux/install.sh
 ```
 
--Update: back up before updating, then run the updater from the newly extracted setup bundle. The updater requires an existing install, preserves /srv/fastsell/data and /srv/fastsell/config, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
+-Update: back up before updating, extract the newer setup bundle into the same setup workspace, then run the updater. The updater requires an existing install, preserves `/srv/fastsell/data` and `/srv/fastsell/config`, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
 
 ```bash
+cd ~/fastsell-install
 sudo bash setup/linux/update.sh
 ```
 
