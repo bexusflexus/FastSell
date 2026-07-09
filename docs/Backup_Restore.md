@@ -7,7 +7,7 @@ FastSell data has two parts: PostgreSQL metadata and local filesystem images/exp
 Stop writes or run during a quiet period, then back up:
 
 ```bash
-sudo docker exec fastsell-postgres pg_dump -U fastsell fastsell > fastsell.sql
+sudo docker exec fastsell_postgres pg_dump -U fastsell fastsell > fastsell.sql
 sudo tar -C /srv/fastsell -czf fastsell-data.tgz data config db
 ```
 

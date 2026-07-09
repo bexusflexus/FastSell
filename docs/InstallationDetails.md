@@ -1,6 +1,6 @@
 # Installation Details
 
-This is aimed at System Administers and presents a more technical version of the install process.
+This is aimed at System Administrators and presents a more technical version of the install process.
 
 FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
@@ -62,7 +62,7 @@ The GitHub Actions workflow publishes one GHCR package:
 Components are separated by tags:
 
 - Candidate images use full-SHA tags such as `api-sha-<full_git_sha>`, `system-agent-sha-<full_git_sha>`, and `web-sha-<full_git_sha>`.
-- Production images use versioned tags such as `api-v0.1.0`, `system-agent-v0.1.0`, and `web-v0.1.0`.
+- Production images use versioned tags such as `api-v0.1.1`, `system-agent-v0.1.1`, and `web-v0.1.1`.
 
 The release workflow does not publish or move `latest` tags. Any remaining `latest` references are legacy compatibility defaults for older local/source-checkout flows and should not be used as production release refs.
 
@@ -82,21 +82,21 @@ Normal inventory setup can run without AI configured, but Whole Scene and AI fea
 
 ## Operations
 
--Initial install from the setup workspace:
+Initial install from the setup workspace:
 
 ```bash
 cd ~/fastsell-install
 sudo bash setup/linux/install.sh
 ```
 
--Update: back up before updating, extract the newer setup bundle into the same setup workspace, then run the updater. The updater requires an existing install, preserves `/srv/fastsell/data` and `/srv/fastsell/config`, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
+Update: back up before updating, extract the newer setup bundle into the same setup workspace, then run the updater. The updater requires an existing install, preserves `/srv/fastsell/data` and `/srv/fastsell/config`, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
 
 ```bash
 cd ~/fastsell-install
 sudo bash setup/linux/update.sh
 ```
 
--Uninstall (2 paths):
+Uninstall has two paths:
 
 1) Default uninstall preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
 
