@@ -18,7 +18,7 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ./scripts/release/do_pr.sh
    ```
 
-   This runs `git add .`, commits, pushes the current branch, creates or reuses a pull request, watches checks, squash merges after checks pass, updates local `main`, and prints candidate QA instructions. No manual `git push origin` is needed when using `do_pr.sh`.
+   This runs `git add .`, commits, pushes the current branch, creates or reuses a pull request, watches checks, squash merges after checks pass, updates local `main`, and prints candidate QA instructions. No manual `git push origin` is needed when using `do_pr.sh`. If the branch already has a pull request, local commits are still pushed before checks and merge.
 
    Advanced/manual primitives remain available:
 

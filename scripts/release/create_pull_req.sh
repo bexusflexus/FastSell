@@ -38,20 +38,13 @@ main() {
         exit 1
     fi
 
+    echo "[OK] Pushing current branch to origin/${branch}"
+    git push -u origin "${branch}"
+
     if existing_url="$(gh pr view --json url --jq .url 2>/dev/null)"; then
         echo "[OK] Pull request already exists: ${existing_url}"
         echo "[OK] Next: ./scripts/release/squash_merge_pull_req.sh"
         exit 0
-    fi
-
-    if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-        echo "[OK] No upstream found for ${branch}; pushing to origin/${branch}"
-        git push -u origin "${branch}"
-    else
-        local upstream
-        upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
-        echo "[OK] Using upstream ${upstream}"
-        git push
     fi
 
     echo "[OK] Creating pull request for ${branch}"

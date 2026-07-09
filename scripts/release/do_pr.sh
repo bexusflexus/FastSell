@@ -158,7 +158,10 @@ main() {
     fi
     echo "[OK] Branch is ready: ahead ${ahead_count}, behind ${behind_count}"
 
-    echo "[4/8] Creating or reusing pull request"
+    echo "[4/8] Pushing branch and creating or reusing pull request"
+    echo "[OK] Pushing current branch to origin"
+    git push -u origin "${branch}"
+
     bash scripts/release/create_pull_req.sh
 
     local pr_number
