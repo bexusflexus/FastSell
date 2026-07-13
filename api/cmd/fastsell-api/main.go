@@ -133,6 +133,7 @@ func main() {
 	adminMetricsHandler := handlers.NewAdminMetricsHandler(adminMetricsStore)
 	adminSystemStore := handlers.NewAdminSystemStore(pool, cfg, time.Now().UTC())
 	adminSystemHandler := handlers.NewAdminSystemHandler(adminSystemStore)
+	versionHandler := handlers.NewVersionHandler(cfg.FastSellVersion, handlers.NewGitHubReleaseLookup())
 	wholeSceneStore := handlers.NewWholeSceneStore(pool, cfg.IntakeDir, cfg.MaxUploadMB, managedFiles, handlers.NewItemImageStorageConfig(
 		cfg.ImageOriginalsDir,
 		cfg.ImageThumbnailsDir,
@@ -141,7 +142,7 @@ func main() {
 		int(cfg.ItemImageMaxCount),
 	))
 	wholeSceneHandler := handlers.NewWholeSceneHandler(wholeSceneStore)
-	router := httpapi.NewRouter(containerStore, locationHandler, containerTypeHandler, inventoryGroupHandler, uploadHandler, reviewHandler, imageHandler, itemHandler, inventoryHandler, aiAdminHandler, sellAdminHandler, sellPublicHandler, adminMetricsHandler, adminSystemHandler, listingDraftHandler, wholeSceneHandler, pool)
+	router := httpapi.NewRouter(containerStore, locationHandler, containerTypeHandler, inventoryGroupHandler, uploadHandler, reviewHandler, imageHandler, itemHandler, inventoryHandler, aiAdminHandler, sellAdminHandler, sellPublicHandler, adminMetricsHandler, adminSystemHandler, versionHandler, listingDraftHandler, wholeSceneHandler, pool)
 
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()

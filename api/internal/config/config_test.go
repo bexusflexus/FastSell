@@ -5,6 +5,7 @@ import "testing"
 func TestLoadDefaultsPort(t *testing.T) {
 	t.Setenv("PORT", "")
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("FASTSELL_VERSION", "")
 	t.Setenv("DATA_ROOT", "")
 	t.Setenv("FRONTEND_HOSTING_MODE", "")
 	t.Setenv("FRONTEND_PUBLIC_URL", "")
@@ -36,6 +37,9 @@ func TestLoadDefaultsPort(t *testing.T) {
 	}
 	if cfg.DatabaseURL != "postgres://example" {
 		t.Fatalf("expected database URL from environment")
+	}
+	if cfg.FastSellVersion != "candidate-development" {
+		t.Fatalf("expected candidate version default, got %q", cfg.FastSellVersion)
 	}
 	if cfg.DataRoot != "/app/data" {
 		t.Fatalf("expected default data root, got %q", cfg.DataRoot)
@@ -114,6 +118,7 @@ func TestLoadDefaultsPort(t *testing.T) {
 func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	t.Setenv("PORT", "9999")
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("FASTSELL_VERSION", "v0.1.3")
 	t.Setenv("DATA_ROOT", "/tmp/data")
 	t.Setenv("FRONTEND_HOSTING_MODE", "nginx")
 	t.Setenv("FRONTEND_PUBLIC_URL", "http://localhost:8888")
@@ -140,6 +145,9 @@ func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	t.Setenv("WHOLE_SCENE_MAX_IMAGE_BYTES", "12345")
 
 	cfg := Load()
+	if cfg.FastSellVersion != "v0.1.3" {
+		t.Fatalf("expected FastSell version from environment, got %q", cfg.FastSellVersion)
+	}
 	if cfg.DataRoot != "/tmp/data" {
 		t.Fatalf("expected data root from environment, got %q", cfg.DataRoot)
 	}

@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       version:
-        description: Production release version, for example v0.1.1
+        description: Production release version, for example vX.Y.Z
         required: true
         type: string
 
@@ -204,6 +204,17 @@ jobs:
             --web-image "${{ steps.images.outputs.web_prod }}" \
             --system-agent-image "${{ steps.images.outputs.system_agent_prod }}"
 
+      - name: Create latest setup bundle alias
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -p \
+            "dist/fastsell-setup-${{ inputs.version }}.tar.gz" \
+            "dist/fastsell-setup.tar.gz"
+          cmp -s \
+            "dist/fastsell-setup-${{ inputs.version }}.tar.gz" \
+            "dist/fastsell-setup.tar.gz"
+
       - name: Generate production release manifest
         shell: bash
         run: |
@@ -232,6 +243,7 @@ jobs:
           sha256sum \
             "fastsell-setup-${{ inputs.version }}.zip" \
             "fastsell-setup-${{ inputs.version }}.tar.gz" \
+            "fastsell-setup.tar.gz" \
             "fastsell-release-${{ inputs.version }}.json" \
             > "fastsell-release-${{ inputs.version }}.sha256"
 
@@ -245,5 +257,6 @@ jobs:
           files: |
             dist/fastsell-setup-${{ inputs.version }}.zip
             dist/fastsell-setup-${{ inputs.version }}.tar.gz
+            dist/fastsell-setup.tar.gz
             dist/fastsell-release-${{ inputs.version }}.json
             dist/fastsell-release-${{ inputs.version }}.sha256
