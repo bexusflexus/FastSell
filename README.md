@@ -22,8 +22,8 @@ Normal users install from the FastSell setup bundle published with each GitHub R
 ```bash
 mkdir -p ~/fastsell-install
 cd ~/fastsell-install
-curl -L -o fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
+curl -fL -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 tar -xzf fastsell-setup.tar.gz --strip-components=1
 rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/install.sh

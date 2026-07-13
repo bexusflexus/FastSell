@@ -362,6 +362,20 @@ update_managed_image_tags() {
     update_managed_image_tag "FASTSELL_WEB_IMAGE" "web"
 }
 
+update_runtime_version() {
+    local desired
+    desired="$(bundle_env_value FASTSELL_VERSION)"
+    if [ -z "${desired}" ] || [[ "${desired}" == *[[:space:]=]* ]]; then
+        echo "[FAIL] Setup bundle does not contain a valid FASTSELL_VERSION." >&2
+        exit 1
+    fi
+
+    if [ "$(env_value FASTSELL_VERSION)" != "${desired}" ]; then
+        echo "[OK] Updating FASTSELL_VERSION to ${desired}"
+        set_env_value FASTSELL_VERSION "${desired}"
+    fi
+}
+
 check_health() {
     local port
     local app_url
@@ -407,6 +421,7 @@ main() {
     update_managed_image_tags
     configure_firewalld
     repair_runtime_permissions
+    update_runtime_version
     pull_images
     apply_migrations
     restart_services

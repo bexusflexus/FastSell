@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	DatabaseURL                   string
+	FastSellVersion               string
 	Port                          string
 	DataRoot                      string
 	FrontendHostingMode           string
@@ -94,6 +95,7 @@ func Load() Config {
 
 	return Config{
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
+		FastSellVersion:               envOrDefault("FASTSELL_VERSION", "candidate-development"),
 		Port:                          port,
 		DataRoot:                      dataRoot,
 		FrontendHostingMode:           os.Getenv("FRONTEND_HOSTING_MODE"),
@@ -124,6 +126,14 @@ func Load() Config {
 		WholeSceneMaxImages:           parseInt64Env("WHOLE_SCENE_MAX_IMAGES", 6),
 		WholeSceneMaxImageBytes:       parseInt64Env("WHOLE_SCENE_MAX_IMAGE_BYTES", 10*1024*1024),
 	}
+}
+
+func envOrDefault(name string, fallback string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func parseInt64Env(name string, fallback int64) int64 {

@@ -164,6 +164,12 @@ apply_image_refs() {
         "${BUNDLE_DIR}/setup/linux/install.sh"
 }
 
+apply_bundle_version() {
+    local env_file="${BUNDLE_DIR}/.env.example"
+
+    sed -i "s#^FASTSELL_VERSION=.*#FASTSELL_VERSION=${VERSION}#" "${env_file}"
+}
+
 file_contains_literal() {
     local file="$1"
     local needle="$2"
@@ -188,6 +194,13 @@ verify_image_ref_substitution() {
     done
 
     echo "[OK] Verified image refs in generated bundle files."
+}
+
+verify_bundle_version() {
+    if ! file_contains_literal "${BUNDLE_DIR}/.env.example" "FASTSELL_VERSION=${VERSION}"; then
+        echo "[FAIL] Expected bundle version was not written: ${VERSION}" >&2
+        exit 1
+    fi
 }
 
 verify_dev_only_not_bundled() {
@@ -269,7 +282,9 @@ main() {
     copy_file "docs/images/thebasics/sell.png"
 
     prepare_image_refs
+    apply_bundle_version
     apply_image_refs
+    verify_bundle_version
     verify_image_ref_substitution
     verify_dev_only_not_bundled
     write_archives

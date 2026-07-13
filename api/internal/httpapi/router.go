@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handlers.LocationHandler, containerTypeHandler *handlers.ContainerTypeHandler, inventoryGroupHandler *handlers.InventoryGroupHandler, uploadHandler *handlers.UploadHandler, reviewHandler *handlers.ReviewHandler, imageHandler *handlers.ImageHandler, itemHandler *handlers.ItemHandler, inventoryHandler *handlers.InventoryHandler, aiAdminHandler *handlers.AIAdminHandler, sellAdminHandler *handlers.SellAdminHandler, sellPublicHandler *handlers.SellPublicHandler, adminMetricsHandler *handlers.AdminMetricsHandler, adminSystemHandler *handlers.AdminSystemHandler, listingDraftHandler *handlers.ListingDraftHandler, wholeSceneHandler *handlers.WholeSceneHandler, pool *pgxpool.Pool) http.Handler {
+func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handlers.LocationHandler, containerTypeHandler *handlers.ContainerTypeHandler, inventoryGroupHandler *handlers.InventoryGroupHandler, uploadHandler *handlers.UploadHandler, reviewHandler *handlers.ReviewHandler, imageHandler *handlers.ImageHandler, itemHandler *handlers.ItemHandler, inventoryHandler *handlers.InventoryHandler, aiAdminHandler *handlers.AIAdminHandler, sellAdminHandler *handlers.SellAdminHandler, sellPublicHandler *handlers.SellPublicHandler, adminMetricsHandler *handlers.AdminMetricsHandler, adminSystemHandler *handlers.AdminSystemHandler, versionHandler *handlers.VersionHandler, listingDraftHandler *handlers.ListingDraftHandler, wholeSceneHandler *handlers.WholeSceneHandler, pool *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -117,6 +117,7 @@ func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handler
 		r.Post("/admin/sell/providers/{id}/disable", sellAdminHandler.DisableProvider)
 		r.Get("/admin/metrics", adminMetricsHandler.Get)
 		r.Get("/admin/system/health", adminSystemHandler.GetHealth)
+		r.Get("/system/version", versionHandler.Get)
 	})
 
 	return r

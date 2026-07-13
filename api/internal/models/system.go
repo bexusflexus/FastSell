@@ -2,6 +2,12 @@ package models
 
 import "time"
 
+type SystemVersionResponse struct {
+	InstalledVersion string  `json:"installed_version"`
+	LatestVersion    *string `json:"latest_version"`
+	UpdateAvailable  bool    `json:"update_available"`
+}
+
 type SystemHealthStatus string
 
 const (

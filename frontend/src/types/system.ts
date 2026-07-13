@@ -1,5 +1,11 @@
 export type SystemHealthStatus = 'ok' | 'warning' | 'failed' | 'unknown';
 
+export interface SystemVersionResponse {
+  installed_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+}
+
 export interface SystemHealthAlert {
   severity: 'warning' | 'failed';
   area: string;

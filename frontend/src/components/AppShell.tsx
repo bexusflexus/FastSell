@@ -1,11 +1,12 @@
 import { useEffect, useState, type PropsWithChildren } from 'react';
 import { NavLink } from 'react-router-dom';
-import { getAdminSystemHealth } from '../api/system';
+import { getAdminSystemHealth, getSystemVersion } from '../api/system';
 import { WHOLE_SCENE_USER_LABEL } from '../wholeScenePresentation';
-import type { AdminSystemHealthResponse } from '../types/system';
+import type { AdminSystemHealthResponse, SystemVersionResponse } from '../types/system';
 
 export function AppShell({ children }: PropsWithChildren) {
   const [isSystemLive, setIsSystemLive] = useState(false);
+  const [systemVersion, setSystemVersion] = useState<SystemVersionResponse | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -23,9 +24,24 @@ export function AppShell({ children }: PropsWithChildren) {
       }
     };
 
+    const loadVersion = async () => {
+      try {
+        const version = await getSystemVersion();
+        if (isMounted) {
+          setSystemVersion(version);
+        }
+      } catch {
+        if (isMounted) {
+          setSystemVersion(null);
+        }
+      }
+    };
+
     void loadHealth();
+    void loadVersion();
     const interval = window.setInterval(() => {
       void loadHealth();
+      void loadVersion();
     }, 30_000);
 
     return () => {
@@ -67,7 +83,12 @@ export function AppShell({ children }: PropsWithChildren) {
               </NavLink>
             </nav>
             <div className={`hidden rounded border px-3 py-2 text-xs font-semibold shadow-[0_0_14px_rgba(255,59,36,0.18)] sm:block ${isSystemLive ? 'border-signal-green/45 bg-signal-green/10 text-green-100' : 'border-signal-red/55 bg-red-950/25 text-signal-red'}`}>
-              {isSystemLive ? 'System Live' : 'System Down'}
+              <div>{isSystemLive ? 'System Live' : 'System Down'}{systemVersion ? ` ${systemVersion.installed_version}` : ''}</div>
+              {systemVersion?.update_available && systemVersion.latest_version ? (
+                <div className="mt-1 text-[11px] font-medium text-amberline-100">
+                  New Version {systemVersion.latest_version} available
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

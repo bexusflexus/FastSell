@@ -1,6 +1,6 @@
 # Installation
 
-FastSell v0.1 installs from the FastSell setup bundle. Normal users do not need to clone the full source repository.
+FastSell installs from the FastSell setup bundle. Normal users do not need to clone the full source repository.
 
 ## Prerequisites
 
@@ -22,22 +22,15 @@ mkdir -p ~/fastsell-install
 cd ~/fastsell-install
 ```
 
-2) Download the setup bundle for the release you want from GitHub Releases. The tarball is preferred because it can be extracted directly into the stable setup workspace.
+2) Download the latest stable setup bundle from GitHub Releases. The tarball is preferred because it can be extracted directly into the stable setup workspace.
 
 ### Option 1: curl
 
 Tarball:
 
 ```bash
-curl -L -o fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
-```
-
-Zip:
-
-```bash
-curl -L -o fastsell-setup.zip \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.zip
+curl -fL -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 ```
 
 ### Option 2: wget
@@ -46,14 +39,7 @@ Tarball:
 
 ```bash
 wget -O fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
-```
-
-Zip:
-
-```bash
-wget -O fastsell-setup.zip \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.zip
+  https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 ```
 
 ### Option 3: GitHub CLI
@@ -61,22 +47,22 @@ wget -O fastsell-setup.zip \
 Tarball:
 
 ```bash
-gh release download v0.1.1 --repo bexusflexus/FastSell \
-  --pattern "fastsell-setup-v0.1.1.tar.gz" \
+gh release download --repo bexusflexus/FastSell \
+  --pattern "fastsell-setup.tar.gz" \
   --output fastsell-setup.tar.gz
 ```
 
-Zip:
+For an exact version or rollback, set the desired release tag explicitly and use its version-specific asset:
 
 ```bash
-gh release download v0.1.1 --repo bexusflexus/FastSell \
-  --pattern "fastsell-setup-v0.1.1.zip" \
-  --output fastsell-setup.zip
+VERSION=vX.Y.Z
+curl -fL -o fastsell-setup.tar.gz \
+  "https://github.com/bexusflexus/FastSell/releases/download/${VERSION}/fastsell-setup-${VERSION}.tar.gz"
 ```
 
 ### Option 4: Browser
 
-Open the GitHub Releases page, download the release archive, and save it in `~/fastsell-install` as `fastsell-setup.tar.gz` or `fastsell-setup.zip`.
+Open the GitHub Releases page, download `fastsell-setup.tar.gz` from the latest release, and save it in `~/fastsell-install`.
 
 ```text
 https://github.com/bexusflexus/FastSell/releases
@@ -146,18 +132,18 @@ Back up FastSell before updating. Then reuse the same setup workspace and extrac
 
 ```bash
 cd ~/fastsell-install
-curl -L -o fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/download/v0.1.1/fastsell-setup-v0.1.1.tar.gz
+curl -fL -o fastsell-setup.tar.gz \
+  https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 tar -xzf fastsell-setup.tar.gz --strip-components=1
 rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/update.sh
 ```
 
-The updater runs from the setup workspace and refreshes runtime files under `/srv/fastsell`, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It preserves `/srv/fastsell/config/.env` and leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
+The updater runs from the setup workspace and refreshes runtime files under `/srv/fastsell`, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It preserves existing `.env` values and secrets while updating the managed image refs and `FASTSELL_VERSION`, and leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
 
 On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
 
-FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-v0.1.1`, `system-agent-v0.1.1`, and `web-v0.1.1`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
+FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-vX.Y.Z`, `system-agent-vX.Y.Z`, and `web-vX.Y.Z`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
 
 ## Uninstall
 

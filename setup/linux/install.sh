@@ -228,10 +228,27 @@ prompt_password() {
     POSTGRES_PASSWORD_VALUE="${first}"
 }
 
+bundle_env_value() {
+    local key="$1"
+    awk -F= -v key="${key}" '$1 == key { value = substr($0, length(key) + 2) } END { print value }' "${REPO_ROOT}/.env.example"
+}
+
+bundle_version() {
+    local value
+    value="$(bundle_env_value FASTSELL_VERSION)"
+    if [ -z "${value}" ] || [[ "${value}" == *[[:space:]=]* ]]; then
+        echo "[FAIL] Setup bundle does not contain a valid FASTSELL_VERSION." >&2
+        exit 1
+    fi
+    printf '%s' "${value}"
+}
+
 write_env_file() {
     local encoded_password
     local tmp_env
+    local version
     encoded_password="$(urlencode "${POSTGRES_PASSWORD_VALUE}")"
+    version="$(bundle_version)"
     tmp_env="$(mktemp)"
     chmod 600 "${tmp_env}"
 
@@ -240,6 +257,7 @@ POSTGRES_DB=fastsell
 POSTGRES_USER=fastsell
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD_VALUE}
 DATABASE_URL=postgres://fastsell:${encoded_password}@postgres:5432/fastsell?sslmode=disable
+FASTSELL_VERSION=${version}
 
 DATA_ROOT=/app/data
 INTAKE_DIR=/app/data/intake/incoming
