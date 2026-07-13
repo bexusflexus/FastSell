@@ -15,16 +15,16 @@ FastSell installs from the FastSell setup bundle. Normal users do not need to cl
 
 `/srv/fastsell` is the runtime root created by the setup scripts. Runtime config lives at `/srv/fastsell/config/.env`, and runtime data lives under `/srv/fastsell/data`.
 
-1) Create the setup workspace.
+### 1) Create the setup workspace.
 
 ```bash
 mkdir -p ~/fastsell-install
 cd ~/fastsell-install
 ```
 
-2) Download the latest stable setup bundle from GitHub Releases. The tarball is preferred because it can be extracted directly into the stable setup workspace.
+### 2) Download the latest stable setup bundle from GitHub Releases. The tarball is preferred because it can be extracted directly into the stable setup workspace.
 
-### Option 1: curl
+#### Option 1: curl
 
 Tarball:
 
@@ -33,7 +33,7 @@ curl -fL -o fastsell-setup.tar.gz \
   https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 ```
 
-### Option 2: wget
+#### Option 2: wget
 
 Tarball:
 
@@ -42,7 +42,7 @@ wget -O fastsell-setup.tar.gz \
   https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
 ```
 
-### Option 3: GitHub CLI
+#### Option 3: GitHub CLI
 
 Tarball:
 
@@ -60,7 +60,7 @@ curl -fL -o fastsell-setup.tar.gz \
   "https://github.com/bexusflexus/FastSell/releases/download/${VERSION}/fastsell-setup-${VERSION}.tar.gz"
 ```
 
-### Option 4: Browser
+#### Option 4: Browser
 
 Open the GitHub Releases page, download `fastsell-setup.tar.gz` from the latest release, and save it in `~/fastsell-install`.
 
@@ -68,7 +68,7 @@ Open the GitHub Releases page, download `fastsell-setup.tar.gz` from the latest 
 https://github.com/bexusflexus/FastSell/releases
 ```
 
-3) Extract into the setup workspace.
+### 3) Extract into the setup workspace.
 
 Preferred tarball path:
 
@@ -87,7 +87,7 @@ cp -a .fastsell-setup-unzip/fastsell-setup-*/. .
 rm -rf .fastsell-setup-unzip fastsell-setup.zip
 ```
 
-4) Run the installer from the setup workspace:
+### 4) Run the installer from the setup workspace:
 
 ```bash
 sudo bash setup/linux/install.sh

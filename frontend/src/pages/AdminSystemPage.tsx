@@ -321,7 +321,7 @@ function DockerServiceRow({ service }: { service: SystemDockerService }) {
         <span>State: {service.state}</span>
         <span>Health: {service.health}</span>
         <span>Restart count: {service.restart_count}</span>
-        <span>Image: {service.image || 'Unavailable'}</span>
+        <span className="min-w-0 [overflow-wrap:anywhere]">Image: {service.image || 'Unavailable'}</span>
         <span>Started: {formatDateTime(service.started_at)}</span>
         <span>Finished: {formatDateTime(service.finished_at)}</span>
       </div>
