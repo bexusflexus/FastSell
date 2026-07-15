@@ -8,7 +8,7 @@ FastSell v0.1 is designed for self-hosted use on a trusted network.
 - Keep `/srv/fastsell/config/.env` readable only by administrators.
 - Do not commit `.env` files, API keys, provider credentials, or private host details.
 - Keep Docker, the host OS, and FastSell images updated.
-- Back up data and protect backups.
+- Use Admin → Backup & Restore for logical database dumps, copy `/srv/fastsell/backups` off-host, and protect those copies.
 
 ## Network Exposure
 
@@ -24,7 +24,9 @@ No API key is included with FastSell. Store `GEMINI_API_KEY` only in FastSell's 
 
 Uploaded images and generated exports live under `/srv/fastsell/data`. Treat this directory as private application data.
 
-FastSell uses a root-owned appliance-style host runtime tree. The setup scripts repair non-PostgreSQL app data to `root:root` with host-browsable directory and file modes. PostgreSQL data under `/srv/fastsell/data/postgres` is left to the PostgreSQL container, and install/update leave its ownership and permissions unchanged.
+Logical dumps and media archives live under `/srv/fastsell/backups` with root-only directory and file modes. They contain private application data even though their metadata sidecars contain no credentials. Never use `/srv/fastsell/data/postgres` or `/srv/fastsell/config/.env` as an application backup, and never expose either through the backup API.
+
+FastSell uses a root-owned appliance-style host runtime tree. The setup scripts repair non-PostgreSQL app data to `root:root` with host-browsable directory and file modes, while backups remain root-only. PostgreSQL data under `/srv/fastsell/data/postgres` is left to the PostgreSQL container, and install/update leave its ownership and permissions unchanged.
 
 ## Reporting Issues
 

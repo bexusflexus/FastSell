@@ -30,6 +30,7 @@ type WholeSceneAnalysisWorkerConfig struct {
 	ThumbnailsDir  string
 	NormalizedDir  string
 	DiagnosticsDir string
+	BeginWrite     func() (func(), bool)
 }
 
 type WholeSceneAnalysisWorker struct {
@@ -194,6 +195,13 @@ func (w *WholeSceneAnalysisWorker) resetStuckProcessing(ctx context.Context) err
 }
 
 func (w *WholeSceneAnalysisWorker) scanOnce(ctx context.Context) error {
+	if w.cfg.BeginWrite != nil {
+		done, ok := w.cfg.BeginWrite()
+		if !ok {
+			return nil
+		}
+		defer done()
+	}
 	job, err := w.claimNextJob(ctx)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {

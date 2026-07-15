@@ -10,6 +10,7 @@ const adminLinks = [
   { title: 'Metrics', href: '/admin/metrics', description: 'Inventory value, counts, duplicate candidates, and top-value items.' },
   { title: 'Uploads', href: '/admin/uploads', description: 'Future upload session inspection and processing state.' },
   { title: 'System', href: '/admin/system', description: 'Read-only FastSell runtime health.' },
+  { title: 'Backup & Restore', href: '/admin/backup-restore', description: 'Schedule logical database backups, create manual backups, and run validated restores.' },
   { title: 'AI Configuration', href: '/admin/ai', description: 'Configure AI providers, active provider state, and connection tests.' },
 ];
 

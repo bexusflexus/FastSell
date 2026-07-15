@@ -21,6 +21,7 @@ type ListingPhotoExportConfig struct {
 	ExportHostRoot  string
 	TTL             time.Duration
 	SourceSafeRoots []string
+	BeginWrite      func() (func(), bool)
 }
 
 type listingPhotoSource struct {
@@ -58,9 +59,7 @@ func (s *ListingDraftStore) RunPhotoExportCleanupWorker(ctx context.Context) {
 		return
 	}
 
-	if err := s.cleanupExpiredPhotoExports(); err != nil {
-		log.Printf("listing photo export startup cleanup failed: %v", err)
-	}
+	s.runPhotoExportCleanup()
 
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
@@ -70,10 +69,21 @@ func (s *ListingDraftStore) RunPhotoExportCleanupWorker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.cleanupExpiredPhotoExports(); err != nil {
-				log.Printf("listing photo export periodic cleanup failed: %v", err)
-			}
+			s.runPhotoExportCleanup()
 		}
+	}
+}
+
+func (s *ListingDraftStore) runPhotoExportCleanup() {
+	if s.exportConfig.BeginWrite != nil {
+		done, ok := s.exportConfig.BeginWrite()
+		if !ok {
+			return
+		}
+		defer done()
+	}
+	if err := s.cleanupExpiredPhotoExports(); err != nil {
+		log.Printf("listing photo export cleanup failed: %v", err)
 	}
 }
 

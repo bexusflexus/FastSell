@@ -15,11 +15,10 @@ FastSell v0.1 is the public baseline. The immediate goal is a reliable self-host
 ## Near-Term Work
 
 - Harden authentication and multi-user access
-- Improve backup and restore tooling
+- Extend the v0.1.4 logical backup/restore foundation with tested cross-version guidance and optional media restore
 - Add more focused integration tests
 - Expand listing/export workflows
 - Improve migration and upgrade documentation
 - Improve Whole Scene scan label to crop identification.  Goal is 85% accuracy.  I think that is doable based on past success and experimentation.
 - Support for other AI providers such as ChatGPT. Currently only Gemini tooling has been tested and approved. Even though another provider might work results can be undefined.
 - Support for local LLMs via Ollama.  
-

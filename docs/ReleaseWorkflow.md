@@ -148,6 +148,7 @@ Candidate testing uses the same stable setup workspace model as normal installs.
 docker-compose.yml
 .env.example
 setup/linux/update.sh
+setup/linux/fastsell-update
 db/
 docker/
 docs/
@@ -189,12 +190,14 @@ The helper:
 
 By default the helper reads artifacts from `bexusflexus/FastSell`. Set `FASTSELL_GITHUB_REPO=owner/repo` before running it if testing a fork.
 
-After applying the candidate files, run the normal update command. This is the step that updates the actual `/srv/fastsell` runtime:
+After applying candidate files, run the bundle's maintainer-facing update script. This is the step that updates the actual `/srv/fastsell` runtime:
 
 ```bash
 cd ~/fastsell-install
 sudo bash setup/linux/update.sh
 ```
+
+Do not use the end-user `fastsell-update` command for candidate QA. It intentionally accepts only stable production GitHub Releases and never downloads Actions candidate artifacts. A successful candidate `update.sh` run still refreshes `/usr/local/bin/fastsell-update` from the candidate bundle so the installed command is ready for later production releases; it does not make candidate discovery available to that command.
 
 Do not commit local staging configuration. Keep staging hostnames, private paths, private network details, and credentials out of the repo.
 

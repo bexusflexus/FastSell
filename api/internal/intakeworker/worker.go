@@ -27,6 +27,7 @@ type Config struct {
 	StableDuration time.Duration
 	MaxUploadBytes int64
 	MaxRowsPerScan int
+	BeginWrite     func() (func(), bool)
 }
 
 type Worker struct {
@@ -91,6 +92,13 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 func (w *Worker) scanOnce(ctx context.Context) {
+	if w.cfg.BeginWrite != nil {
+		done, ok := w.cfg.BeginWrite()
+		if !ok {
+			return
+		}
+		defer done()
+	}
 	scanCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

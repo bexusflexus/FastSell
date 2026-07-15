@@ -10,6 +10,8 @@ type Config struct {
 	FastSellVersion               string
 	Port                          string
 	DataRoot                      string
+	BackupRoot                    string
+	MigrationRoot                 string
 	FrontendHostingMode           string
 	FrontendPublicURL             string
 	SystemAgentURL                string
@@ -48,6 +50,16 @@ func Load() Config {
 	dataRoot := os.Getenv("DATA_ROOT")
 	if dataRoot == "" {
 		dataRoot = "/app/data"
+	}
+
+	backupRoot := os.Getenv("FASTSELL_BACKUP_ROOT")
+	if backupRoot == "" {
+		backupRoot = "/app/backups"
+	}
+
+	migrationRoot := os.Getenv("FASTSELL_MIGRATION_ROOT")
+	if migrationRoot == "" {
+		migrationRoot = "/app/migrations"
 	}
 
 	intakeDir := os.Getenv("INTAKE_DIR")
@@ -98,6 +110,8 @@ func Load() Config {
 		FastSellVersion:               envOrDefault("FASTSELL_VERSION", "candidate-development"),
 		Port:                          port,
 		DataRoot:                      dataRoot,
+		BackupRoot:                    backupRoot,
+		MigrationRoot:                 migrationRoot,
 		FrontendHostingMode:           os.Getenv("FRONTEND_HOSTING_MODE"),
 		FrontendPublicURL:             os.Getenv("FRONTEND_PUBLIC_URL"),
 		SystemAgentURL:                os.Getenv("SYSTEM_AGENT_URL"),

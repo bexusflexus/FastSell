@@ -29,6 +29,7 @@ type ReviewAIAssistWorkerConfig struct {
 	MaxImages     int
 	MaxImageBytes int64
 	SafeRoots     []string
+	BeginWrite    func() (func(), bool)
 }
 
 type ReviewAIAssistWorker struct {
@@ -138,6 +139,13 @@ func (w *ReviewAIAssistWorker) resetStuckProcessing(ctx context.Context) error {
 }
 
 func (w *ReviewAIAssistWorker) scanOnce(ctx context.Context) error {
+	if w.cfg.BeginWrite != nil {
+		done, ok := w.cfg.BeginWrite()
+		if !ok {
+			return nil
+		}
+		defer done()
+	}
 	job, err := w.claimNextJob(ctx)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
