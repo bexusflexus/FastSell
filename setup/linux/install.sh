@@ -6,14 +6,19 @@ COMPOSE_DIR="${ROOT}/compose"
 CONFIG_DIR="${ROOT}/config"
 ENV_FILE="${CONFIG_DIR}/.env"
 DATA_DIR="${ROOT}/data"
+BACKUP_DIR="${ROOT}/backups"
 MIGRATIONS_DIR="${ROOT}/db/migrations"
 NGINX_DIR="${CONFIG_DIR}/nginx"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 PROJECT_NAME="fastsell"
 DEFAULT_HTTP_PORT="8888"
+UPDATE_COMMAND="/usr/local/bin/fastsell-update"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+
+# shellcheck source=setup/linux/lib/install_guard.sh
+source "${SCRIPT_DIR}/lib/install_guard.sh"
 
 DOCKER_CMD=(docker)
 
@@ -101,10 +106,16 @@ patch_compose_for_docker_selinux() {
             print "      - /srv/fastsell/db/migrations:/migrations:ro,Z"
             next
         }
-        $0 == "      - /srv/fastsell/data:/app/data" {
-            print "      - /srv/fastsell/data/intake:/app/data/intake:Z"
-            print "      - /srv/fastsell/data/images:/app/data/images:Z"
-            print "      - /srv/fastsell/data/exports:/app/data/exports:Z"
+        $0 == "      - /srv/fastsell/data/intake:/app/data/intake" ||
+        $0 == "      - /srv/fastsell/data/images:/app/data/images" ||
+        $0 == "      - /srv/fastsell/data/exports:/app/data/exports" ||
+        $0 == "      - /srv/fastsell/data/videos:/app/data/videos" ||
+        $0 == "      - /srv/fastsell/backups:/app/backups" {
+            print $0 ":Z"
+            next
+        }
+        $0 == "      - /srv/fastsell/db/migrations:/app/migrations:ro" {
+            print "      - /srv/fastsell/db/migrations:/app/migrations:ro,Z"
             next
         }
         $0 == "      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro" {
@@ -125,6 +136,9 @@ patch_compose_for_docker_selinux() {
      /srv/fastsell/data/intake:/app/data/intake:Z
      /srv/fastsell/data/images:/app/data/images:Z
      /srv/fastsell/data/exports:/app/data/exports:Z
+     /srv/fastsell/data/videos:/app/data/videos:Z
+     /srv/fastsell/backups:/app/backups:Z
+     /srv/fastsell/db/migrations:/app/migrations:ro,Z
 PATCHED
 }
 
@@ -137,7 +151,10 @@ assert_selinux_compose_patch() {
         "      - /srv/fastsell/config/nginx/fastsell.conf:/etc/nginx/conf.d/default.conf:ro,Z" \
         "      - /srv/fastsell/data/intake:/app/data/intake:Z" \
         "      - /srv/fastsell/data/images:/app/data/images:Z" \
-        "      - /srv/fastsell/data/exports:/app/data/exports:Z"; do
+        "      - /srv/fastsell/data/exports:/app/data/exports:Z" \
+        "      - /srv/fastsell/data/videos:/app/data/videos:Z" \
+        "      - /srv/fastsell/backups:/app/backups:Z" \
+        "      - /srv/fastsell/db/migrations:/app/migrations:ro,Z"; do
         if ! as_root grep -Fxq "${expected_mount}" "${COMPOSE_FILE}"; then
             echo "[FAIL] Expected SELinux Compose mount is missing: ${expected_mount#      - }"
             exit 1
@@ -260,6 +277,8 @@ DATABASE_URL=postgres://fastsell:${encoded_password}@postgres:5432/fastsell?sslm
 FASTSELL_VERSION=${version}
 
 DATA_ROOT=/app/data
+FASTSELL_BACKUP_ROOT=/app/backups
+FASTSELL_MIGRATION_ROOT=/app/migrations
 INTAKE_DIR=/app/data/intake/incoming
 INTAKE_PROCESSING_DIR=/app/data/intake/processing
 INTAKE_FAILED_DIR=/app/data/intake/failed
@@ -309,8 +328,15 @@ prepare_runtime_tree() {
         "${DATA_DIR}/images/originals" \
         "${DATA_DIR}/images/normalized" \
         "${DATA_DIR}/images/thumbnails" \
-        "${DATA_DIR}/exports/listing-photos"
+        "${DATA_DIR}/exports/listing-photos" \
+        "${DATA_DIR}/videos"
     as_root install -d -m 0700 -o 70 -g 70 "${DATA_DIR}/postgres"
+    as_root install -d -m 0700 \
+        "${BACKUP_DIR}" \
+        "${BACKUP_DIR}/database" \
+        "${BACKUP_DIR}/media" \
+        "${BACKUP_DIR}/jobs" \
+        "${BACKUP_DIR}/restore-staging"
 }
 
 copy_release_files() {
@@ -326,11 +352,19 @@ copy_release_files() {
 
 repair_runtime_permissions() {
     echo "[OK] Setting root-owned host runtime permissions"
-    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -exec chown root:root {} +
-    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -type d -exec chmod 0755 {} +
-    as_root find "${ROOT}" -path "${DATA_DIR}/postgres" -prune -o -type f ! -path "${ENV_FILE}" -exec chmod 0644 {} +
+    as_root find "${ROOT}" \( -path "${DATA_DIR}/postgres" -o -path "${BACKUP_DIR}" \) -prune -o -exec chown root:root {} +
+    as_root find "${ROOT}" \( -path "${DATA_DIR}/postgres" -o -path "${BACKUP_DIR}" \) -prune -o -type d -exec chmod 0755 {} +
+    as_root find "${ROOT}" \( -path "${DATA_DIR}/postgres" -o -path "${BACKUP_DIR}" \) -prune -o -type f ! -path "${ENV_FILE}" -exec chmod 0644 {} +
+    as_root chown -R root:root "${BACKUP_DIR}"
+    as_root find "${BACKUP_DIR}" -type d -exec chmod 0700 {} +
+    as_root find "${BACKUP_DIR}" -type f -exec chmod 0600 {} +
     as_root chown root:root "${ENV_FILE}"
     as_root chmod 0600 "${ENV_FILE}"
+}
+
+install_update_command() {
+    echo "[OK] Installing ${UPDATE_COMMAND}"
+    as_root install -m 0755 "${REPO_ROOT}/setup/linux/fastsell-update" "${UPDATE_COMMAND}"
 }
 
 show_runtime_status() {
@@ -339,11 +373,23 @@ show_runtime_status() {
     as_root ls -ld "${DATA_DIR}/exports"
     as_root ls -ld "${DATA_DIR}/exports/listing-photos"
     as_root ls -ld "${DATA_DIR}/postgres"
+    as_root ls -ld "${BACKUP_DIR}" "${BACKUP_DIR}/database" "${BACKUP_DIR}/media" "${BACKUP_DIR}/jobs" "${BACKUP_DIR}/restore-staging"
     compose ps
 }
 
 main() {
+    if fastsell_runtime_has_state "${ROOT}"; then
+        fastsell_print_existing_install_failure "${ROOT}"
+        exit 1
+    fi
+
     check_docker
+
+    if fastsell_docker_resources_exist; then
+        fastsell_print_existing_install_failure "${ROOT}"
+        exit 1
+    fi
+
     prompt_password
     prepare_runtime_tree
     write_env_file
@@ -363,6 +409,7 @@ main() {
     echo "[OK] Starting FastSell"
     compose up -d
 
+    install_update_command
     echo "[OK] FastSell install complete"
     show_runtime_status
 }

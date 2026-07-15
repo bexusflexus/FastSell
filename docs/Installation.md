@@ -11,9 +11,9 @@ FastSell installs from the FastSell setup bundle. Normal users do not need to cl
 
 ## Install
 
-`~/fastsell-install` is the setup workspace where you download and extract setup bundle files. Reuse this same folder for future updates.
+`~/fastsell-install` is only a setup workspace where installation or manual-fallback bundle files are extracted. It is not runtime state and is not required for normal `fastsell-update` use.
 
-`/srv/fastsell` is the runtime root created by the setup scripts. Runtime config lives at `/srv/fastsell/config/.env`, and runtime data lives under `/srv/fastsell/data`.
+`/srv/fastsell` is the runtime root created by the setup scripts. Runtime config lives at `/srv/fastsell/config/.env`, runtime data lives under `/srv/fastsell/data`, and logical backups live under the fixed `/srv/fastsell/backups` root.
 
 ### 1) Create the setup workspace.
 
@@ -93,9 +93,12 @@ rm -rf .fastsell-setup-unzip fastsell-setup.zip
 sudo bash setup/linux/install.sh
 ```
 
+`install.sh` is only for a genuinely new installation. Before prompting for a database password or changing the host, it refuses any nonempty `/srv/fastsell` tree, preserved data or backups, installed Compose files, FastSell containers, or FastSell Compose resources. Use `fastsell-update` or the manual `update.sh` fallback for an existing installation. There is no force bypass.
+
 What the installer does:
 
 - Creates `/srv/fastsell`
+- Creates root-only backup directories under `/srv/fastsell/backups`
 - Writes `/srv/fastsell/config/.env`
 - Sets non-PostgreSQL runtime directories to `root:root` with host-browsable permissions
 - Copies `docker-compose.yml`, nginx config, and database migrations
@@ -104,8 +107,9 @@ What the installer does:
 - Pulls prebuilt container images from GHCR
 - Applies `db/migrations/000001_v0_1_baseline_schema.up.sql`
 - Starts PostgreSQL, API, system-agent, and web services
+- Installs `/usr/local/bin/fastsell-update`
 
-FastSell does not require a host user or group named `fastsell`. App data under `/srv/fastsell/data` is root-owned for the local appliance model. PostgreSQL data under `/srv/fastsell/data/postgres` is managed by the PostgreSQL container and is not repaired by the setup scripts.
+FastSell does not require a host user or group named `fastsell`. App data under `/srv/fastsell/data` is root-owned for the local appliance model. Backup directories and artifacts are root-only (`0700` directories and `0600` files). PostgreSQL data under `/srv/fastsell/data/postgres` is managed by the PostgreSQL container and is not repaired by the setup scripts.
 
 The default web port is `8888`.
 
@@ -128,22 +132,49 @@ PostgreSQL remote database access is intentionally enabled by the bundled Compos
 
 ## Update
 
-Back up FastSell before updating. Then reuse the same setup workspace and extract the newer setup bundle into it.
+Create and validate a logical database backup in **Admin → Backup & Restore** before updating. The normal end-user command updates to the latest stable production release:
+
+```bash
+sudo fastsell-update
+```
+
+Select an exact stable release with:
+
+```bash
+sudo fastsell-update --version vX.Y.Z
+```
+
+Use `--yes` to skip the ordinary update confirmation. Selecting a version older than the installed version is blocked unless `--allow-rollback` is also supplied. Rollback is explicitly warned because forward-only database migrations may make older application versions unsafe.
+
+`fastsell-update` reads the installed `FASTSELL_VERSION` from `/srv/fastsell/config/.env`. Without `--version`, it queries GitHub's latest stable Release endpoint and rejects draft or prerelease metadata. It reports installed and selected versions and exits successfully without downloading release assets when already current.
+
+For an update, it creates a root-only `mktemp -d` workspace and downloads exactly these versioned production Release assets:
+
+```text
+fastsell-setup-vX.Y.Z.tar.gz
+fastsell-release-vX.Y.Z.sha256
+```
+
+It uses `curl --fail --location`, extracts the setup archive's exact checksum from the release-published checksum file, verifies it with `sha256sum -c`, and then inspects the archive. Absolute paths, traversal components, unexpected top-level paths, duplicate entries, links, devices, and archives missing `setup/linux/update.sh` or `setup/linux/fastsell-update` are rejected. Extraction occurs only in the secure temporary workspace after validation.
+
+After confirmation, the downloaded bundle's `setup/linux/update.sh` refreshes runtime Compose files and migrations, updates only managed versioned image references inherited from the production bundle, runs migrations, restarts services, validates `/health` and `/health/db`, and finally refreshes `/usr/local/bin/fastsell-update`. Existing `/srv/fastsell/data`, `/srv/fastsell/backups`, `/srv/fastsell/config/.env`, PostgreSQL storage, images, exports, and intake state are preserved.
+
+Failed metadata or asset downloads, missing assets, malformed checksums, checksum mismatches, and unsafe archives stop before `update.sh` runs. Temporary files are removed on success, failure, interruption, or signal. If `update.sh` itself fails, its nonzero status is reported and preserved; because migrations and container updates are operational steps, inspect its output and system health before retrying.
+
+### Manual setup-bundle fallback
+
+If the installed command is unavailable, download and extract the desired production setup bundle into `~/fastsell-install`, verify the matching release checksum, and then run:
 
 ```bash
 cd ~/fastsell-install
-curl -fL -o fastsell-setup.tar.gz \
-  https://github.com/bexusflexus/FastSell/releases/latest/download/fastsell-setup.tar.gz
-tar -xzf fastsell-setup.tar.gz --strip-components=1
-rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/update.sh
 ```
 
-The updater runs from the setup workspace and refreshes runtime files under `/srv/fastsell`, repairs non-PostgreSQL app data ownership to `root:root`, pulls configured GHCR images, runs migrations, restarts services, and checks `/health` and `/health/db`. It preserves existing `.env` values and secrets while updating the managed image refs and `FASTSELL_VERSION`, and leaves `/srv/fastsell/data/postgres` ownership and permissions unchanged.
+`install.sh` creates new runtime state and refuses existing or partial installations. `update.sh` requires an existing `.env` and preserves it while applying the exact files and image references already embedded in the extracted bundle. Do not delete `/srv/fastsell`; it is the runtime state, while `~/fastsell-install` is only a disposable setup workspace.
 
 On SELinux-enabled Docker hosts, the updater reapplies the required bind mount labels to the freshly copied installed Compose file. It does not delete or recreate existing PostgreSQL data.
 
-FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-vX.Y.Z`, `system-agent-vX.Y.Z`, and `web-vX.Y.Z`. Candidate setup bundles use full-SHA refs such as `api-sha-<full_git_sha>`. `latest` is a deprecated legacy compatibility default and is not moved by the release workflow.
+FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-specific tags. Production setup bundles use versioned image refs such as `api-vX.Y.Z`, `system-agent-vX.Y.Z`, and `web-vX.Y.Z`. Candidate setup bundles and candidate helpers are maintainer-only and use immutable full-SHA refs such as `api-sha-<full_git_sha>`. The production updater never downloads candidate artifacts or constructs image tags. `latest` container tags are deprecated compatibility defaults and are not moved by the release workflow.
 
 ## Uninstall
 
@@ -151,7 +182,7 @@ FastSell uses one GHCR package, `ghcr.io/bexusflexus/fastsell`, with component-s
 sudo bash setup/linux/uninstall.sh
 ```
 
-Default uninstall removes FastSell containers, the Compose network, and installed app/runtime files, but preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved data includes PostgreSQL data, uploaded images/files, generated exports, and other FastSell runtime data. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
+Default uninstall removes FastSell containers, the Compose network, installed app/runtime files, and `/usr/local/bin/fastsell-update`, but preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`. Preserved data includes PostgreSQL data, uploaded images/files, generated exports, and other FastSell runtime data. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
 
 Uninstall does not disable Docker or firewalld and does not remove firewall rules.
 
@@ -161,7 +192,7 @@ To permanently remove FastSell user data, back up first and run:
 sudo bash setup/linux/uninstall.sh --killmydata
 ```
 
-`--killmydata` removes `/srv/fastsell`, including `/srv/fastsell/data`, `/srv/fastsell/config`, PostgreSQL data, uploaded images/files, generated exports, and installed app/config/runtime files.
+`--killmydata` removes `/srv/fastsell`, including `/srv/fastsell/data`, `/srv/fastsell/backups`, `/srv/fastsell/config`, PostgreSQL data, uploaded images/files, generated exports, logical backups, and installed app/config/runtime files.
 
 ## Developer Install Path
 

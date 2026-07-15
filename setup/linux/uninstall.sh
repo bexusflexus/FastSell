@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT="/srv/fastsell"
 DATA_DIR="${ROOT}/data"
 CONFIG_DIR="${ROOT}/config"
+BACKUP_DIR="${ROOT}/backups"
 ENV_FILE="${CONFIG_DIR}/.env"
 COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
 PROJECT_NAME="fastsell"
+UPDATE_COMMAND="/usr/local/bin/fastsell-update"
 DOCKER_CMD=(docker)
 KILL_MY_DATA=false
 
@@ -15,8 +17,8 @@ usage() {
 Usage:
   bash setup/linux/uninstall.sh [--killmydata]
 
-Default uninstall preserves FastSell user data under /srv/fastsell/data
-and installed config under /srv/fastsell/config.
+Default uninstall preserves FastSell user data under /srv/fastsell/data,
+logical backups under /srv/fastsell/backups, and installed config.
 
 Options:
   --killmydata  Permanently remove all FastSell data, config, and installed
@@ -117,6 +119,9 @@ remove_app_runtime_files() {
     else
         echo "[OK] No FastSell config directory found at ${CONFIG_DIR}."
     fi
+    if [ -d "${BACKUP_DIR}" ]; then
+        echo "[OK] Logical backups preserved at ${BACKUP_DIR}"
+    fi
 }
 
 remove_runtime_root() {
@@ -133,6 +138,13 @@ remove_runtime_root() {
         echo "[OK] Deleted all FastSell data, config, and install files under ${ROOT}"
     else
         echo "[OK] Runtime directory ${ROOT} is already absent."
+    fi
+}
+
+remove_update_command() {
+    if [ -e "${UPDATE_COMMAND}" ] || [ -L "${UPDATE_COMMAND}" ]; then
+        echo "[OK] Removing ${UPDATE_COMMAND}"
+        as_root rm -f -- "${UPDATE_COMMAND}"
     fi
 }
 
@@ -162,6 +174,7 @@ if [ "${KILL_MY_DATA}" = true ]; then
 else
     remove_app_runtime_files
 fi
+remove_update_command
 
 echo "[OK] Docker service and firewalld state were left unchanged."
 echo "[OK] FastSell uninstall complete"

@@ -6,7 +6,7 @@ FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
 Normal users deploy FastSell from the setup bundle attached to GitHub Releases. The setup bundle contains runtime Compose files, migrations, setup scripts, and user documentation; it does not require a full repository clone.
 
-Use one stable setup workspace, such as `~/fastsell-install`, for extracting setup bundle files and running setup scripts. Reuse that same workspace for updates. The setup workspace is separate from the FastSell runtime root.
+`~/fastsell-install` is an extracted setup workspace for initial installation or manual update fallback. Normal production updates use `/usr/local/bin/fastsell-update`; the setup workspace is separate from and disposable relative to the FastSell runtime root.
 
 ## Compose Stack
 
@@ -26,6 +26,7 @@ Runtime files are installed under `/srv/fastsell`:
 /srv/fastsell/config/nginx/fastsell.conf
 /srv/fastsell/db/migrations
 /srv/fastsell/data
+/srv/fastsell/backups
 ```
 
 Ownership model:
@@ -34,13 +35,14 @@ Ownership model:
 - Normal non-PostgreSQL directories are `0755`.
 - Normal non-PostgreSQL files are `0644`.
 - `/srv/fastsell/config/.env` is `0600`.
+- `/srv/fastsell/backups` and its database, media, jobs, and restore-staging directories are `root:root` mode `0700`; artifacts are mode `0600`.
 - `/srv/fastsell/data/postgres` is owned and managed by the PostgreSQL container. The setup scripts leave its ownership and permissions unchanged.
 
 No host user or group named `fastsell` is required. Updates repair older non-PostgreSQL app data ownership to `root:root` so exports remain browsable from the host.
 
 ## SELinux and firewalld
 
-The Linux install and update scripts keep a distro-neutral Compose source file and patch only the installed copy at `/srv/fastsell/compose/docker-compose.yml` when Docker reports SELinux in `docker info` security options. On SELinux-enabled Docker hosts, the installed Compose file uses `:Z` labels for FastSell bind mounts and leaves `/var/run/docker.sock` as a read-only mount without relabeling.
+The Linux install and update scripts keep a distro-neutral Compose source file and patch only the installed copy at `/srv/fastsell/compose/docker-compose.yml` when Docker reports SELinux in `docker info` security options. On SELinux-enabled Docker hosts, the installed Compose file uses `:Z` labels for FastSell bind mounts and leaves the system-agent's `/var/run/docker.sock` mount read-only without relabeling. The main API does not mount the Docker socket.
 
 Users do not need manual SELinux setup commands for the standard FastSell install. Fresh installs explicitly create PostgreSQL storage for `postgres:16-alpine` at `/srv/fastsell/data/postgres` with owner/group `70:70` and mode `0700`. Updates do not delete, recreate, or repair existing PostgreSQL data.
 
@@ -89,16 +91,19 @@ cd ~/fastsell-install
 sudo bash setup/linux/install.sh
 ```
 
-Update: back up before updating, extract the newer setup bundle into the same setup workspace, then run the updater. The updater requires an existing install, preserves `/srv/fastsell/data` and `/srv/fastsell/config`, copies updated runtime files, applies migrations, pulls updated FastSell images, restarts services, and checks health.
+The installer performs a read-only preflight before any password prompt or mutation. It permits only a missing or completely empty `/srv/fastsell` with no FastSell containers, Compose project containers, network, or labeled volumes. Any existing configuration, PostgreSQL files, images, intake data, exports, backups, Compose files, or other partial runtime state is refused with update and destructive-uninstall guidance.
+
+Normal production update after creating and validating an Admin logical database backup:
 
 ```bash
-cd ~/fastsell-install
-sudo bash setup/linux/update.sh
+sudo fastsell-update
 ```
+
+The command discovers or validates a stable `vX.Y.Z` GitHub Release, verifies the versioned setup tarball against `fastsell-release-vX.Y.Z.sha256`, rejects unsafe archive structure, extracts into a secure temporary directory, and runs that bundle's `update.sh`. `update.sh` preserves `/srv/fastsell/data`, `/srv/fastsell/backups`, and `/srv/fastsell/config/.env`, applies migrations and versioned production images, verifies health, and refreshes the installed updater only after success. The manual fallback remains `sudo bash setup/linux/update.sh` from a verified extracted production bundle.
 
 Uninstall has two paths:
 
-1) Default uninstall preserves user data under `/srv/fastsell/data` and config under `/srv/fastsell/config`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
+1) Default uninstall preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`, while deliberately removing `/usr/local/bin/fastsell-update`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
 
 ```bash
 sudo bash setup/linux/uninstall.sh

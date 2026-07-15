@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	backupsvc "fastsell-api/internal/backup"
 	"fastsell-api/internal/config"
 	"fastsell-api/internal/db"
 	"fastsell-api/internal/handlers"
@@ -22,13 +23,14 @@ func main() {
 	cfg := config.Load()
 
 	log.Printf(
-		"starting fastsell-api on 0.0.0.0:%s database_url_configured=%t intake_dir=%s processing_dir=%s failed_dir=%s originals_dir=%s worker_enabled=%t ai_assist_worker_enabled=%t whole_scene_worker_enabled=%t max_upload_mb=%d",
+		"starting fastsell-api on 0.0.0.0:%s database_url_configured=%t intake_dir=%s processing_dir=%s failed_dir=%s originals_dir=%s backup_root=%s worker_enabled=%t ai_assist_worker_enabled=%t whole_scene_worker_enabled=%t max_upload_mb=%d",
 		cfg.Port,
 		cfg.DatabaseURL != "",
 		filepath.Clean(cfg.IntakeDir),
 		filepath.Clean(cfg.IntakeProcessingDir),
 		filepath.Clean(cfg.IntakeFailedDir),
 		filepath.Clean(cfg.ImageOriginalsDir),
+		filepath.Clean(cfg.BackupRoot),
 		cfg.IntakeWorkerEnabled,
 		cfg.AIAssistWorkerEnabled,
 		cfg.WholeSceneWorkerEnabled,
@@ -55,17 +57,18 @@ func main() {
 
 	pool, err := db.NewPool(context.Background(), cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("database pool setup failed: %v", err)
+		log.Fatal("database pool setup failed")
 	}
 	defer pool.Close()
 
 	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := pool.Ping(pingCtx); err != nil {
 		cancel()
-		log.Fatalf("database ping failed: %v", err)
+		log.Fatal("database ping failed")
 	}
 	cancel()
 	log.Print("database connection verified")
+	maintenanceGate := backupsvc.NewMaintenanceGate()
 
 	containerStore := handlers.NewContainerStore(pool, handlers.ContainerDeleteDirs{
 		ImageRoot:           cfg.ImageRoot,
@@ -127,12 +130,35 @@ func main() {
 		ExportHostRoot:  cfg.ListingPhotoExportHostRoot,
 		TTL:             time.Duration(cfg.ListingPhotoExportTTLHours) * time.Hour,
 		SourceSafeRoots: []string{cfg.ImageRoot, cfg.ImageOriginalsDir},
+		BeginWrite:      maintenanceGate.BeginWrite,
 	})
 	listingDraftHandler := handlers.NewListingDraftHandler(listingDraftStore)
 	adminMetricsStore := handlers.NewAdminMetricsStore(pool)
 	adminMetricsHandler := handlers.NewAdminMetricsHandler(adminMetricsStore)
 	adminSystemStore := handlers.NewAdminSystemStore(pool, cfg, time.Now().UTC())
 	adminSystemHandler := handlers.NewAdminSystemHandler(adminSystemStore)
+	backupService, err := backupsvc.NewService(backupsvc.Config{
+		Root: cfg.BackupRoot, DataRoot: cfg.DataRoot, FastSellVersion: cfg.FastSellVersion,
+		DatabaseURL: cfg.DatabaseURL,
+	}, backupsvc.NewPostgresDatabase(pool, cfg.MigrationRoot), backupsvc.NewPostgresSettingsStore(pool), backupsvc.ExecRunner{}, maintenanceGate)
+	if err != nil {
+		log.Fatalf("backup service setup failed: %v", err)
+	}
+	backupScheduler := backupsvc.NewScheduler(func() {
+		if _, err := backupService.StartBackup("scheduled"); err != nil && !errors.Is(err, backupsvc.ErrOperationConflict) {
+			log.Printf("scheduled database backup could not be queued: %v", err)
+		}
+	})
+	backupService.SetSettingsApplyHook(backupScheduler.Start)
+	backupSettings, err := backupService.GetSettings(context.Background())
+	if err != nil {
+		log.Fatalf("backup settings load failed: %v", err)
+	}
+	if err := backupScheduler.Start(backupSettings); err != nil {
+		log.Fatalf("backup scheduler setup failed: %v", err)
+	}
+	defer backupScheduler.Stop()
+	adminBackupHandler := handlers.NewAdminBackupHandler(backupService)
 	versionHandler := handlers.NewVersionHandler(cfg.FastSellVersion, handlers.NewGitHubReleaseLookup())
 	wholeSceneStore := handlers.NewWholeSceneStore(pool, cfg.IntakeDir, cfg.MaxUploadMB, managedFiles, handlers.NewItemImageStorageConfig(
 		cfg.ImageOriginalsDir,
@@ -142,7 +168,7 @@ func main() {
 		int(cfg.ItemImageMaxCount),
 	))
 	wholeSceneHandler := handlers.NewWholeSceneHandler(wholeSceneStore)
-	router := httpapi.NewRouter(containerStore, locationHandler, containerTypeHandler, inventoryGroupHandler, uploadHandler, reviewHandler, imageHandler, itemHandler, inventoryHandler, aiAdminHandler, sellAdminHandler, sellPublicHandler, adminMetricsHandler, adminSystemHandler, versionHandler, listingDraftHandler, wholeSceneHandler, pool)
+	router := httpapi.NewRouter(containerStore, locationHandler, containerTypeHandler, inventoryGroupHandler, uploadHandler, reviewHandler, imageHandler, itemHandler, inventoryHandler, aiAdminHandler, sellAdminHandler, sellPublicHandler, adminMetricsHandler, adminSystemHandler, adminBackupHandler, versionHandler, listingDraftHandler, wholeSceneHandler, pool)
 
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
@@ -156,6 +182,7 @@ func main() {
 			StableDuration: time.Duration(cfg.IntakeStableSeconds) * time.Second,
 			MaxUploadBytes: cfg.MaxUploadMB * 1024 * 1024,
 			MaxRowsPerScan: 25,
+			BeginWrite:     maintenanceGate.BeginWrite,
 		})
 		go worker.Run(workerCtx)
 	} else {
@@ -174,6 +201,7 @@ func main() {
 				cfg.IntakeProcessingDir,
 				cfg.IntakeFailedDir,
 			},
+			BeginWrite: maintenanceGate.BeginWrite,
 		})
 		go worker.Run(workerCtx)
 	} else {
@@ -195,6 +223,7 @@ func main() {
 				cfg.IntakeProcessingDir,
 				cfg.IntakeFailedDir,
 			},
+			BeginWrite: maintenanceGate.BeginWrite,
 		})
 		go worker.Run(workerCtx)
 	} else {

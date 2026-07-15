@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell';
 import { AdminContainersPage } from './pages/AdminContainersPage';
 import { AdminContainerTypesPage } from './pages/AdminContainerTypesPage';
 import { AdminAIPage } from './pages/AdminAIPage';
+import { AdminBackupPage } from './pages/AdminBackupPage';
 import { AdminInventoryGroupsPage } from './pages/AdminInventoryGroupsPage';
 import { AdminMetricsPage } from './pages/AdminMetricsPage';
 import { AdminLocationsPage } from './pages/AdminLocationsPage';
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/admin/container-types" element={<AdminContainerTypesPage />} />
         <Route path="/admin/locations" element={<AdminLocationsPage />} />
         <Route path="/admin/containers" element={<AdminContainersPage />} />
+        <Route path="/admin/backup-restore" element={<AdminBackupPage />} />
         <Route
           path="/admin/uploads"
           element={

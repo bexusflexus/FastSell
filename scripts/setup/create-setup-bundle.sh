@@ -210,6 +210,35 @@ verify_dev_only_not_bundled() {
     fi
 }
 
+verify_setup_commands() {
+    local path
+
+    for path in \
+        "setup/linux/install.sh" \
+        "setup/linux/update.sh" \
+        "setup/linux/uninstall.sh" \
+        "setup/linux/fastsell-update"; do
+        if [ ! -x "${BUNDLE_DIR}/${path}" ]; then
+            echo "[FAIL] Setup command is not executable in the generated bundle: ${path}" >&2
+            exit 1
+        fi
+    done
+    if [ ! -f "${BUNDLE_DIR}/setup/linux/lib/install_guard.sh" ]; then
+        echo "[FAIL] Installer guard is missing from the generated bundle." >&2
+        exit 1
+    fi
+    if ! file_contains_literal "${BUNDLE_DIR}/setup/linux/install.sh" "/usr/local/bin/fastsell-update"; then
+        echo "[FAIL] Generated install.sh does not install fastsell-update." >&2
+        exit 1
+    fi
+    if ! file_contains_literal "${BUNDLE_DIR}/setup/linux/update.sh" "/usr/local/bin/fastsell-update"; then
+        echo "[FAIL] Generated update.sh does not refresh fastsell-update." >&2
+        exit 1
+    fi
+
+    echo "[OK] Verified installer guard and updater commands in generated bundle."
+}
+
 write_archives() {
     mkdir -p "${DIST_DIR}"
     rm -f \
@@ -235,6 +264,8 @@ main() {
     require_file "setup/linux/install.sh"
     require_file "setup/linux/update.sh"
     require_file "setup/linux/uninstall.sh"
+    require_file "setup/linux/fastsell-update"
+    require_file "setup/linux/lib/install_guard.sh"
     require_file "docs/Installation.md"
     require_file "docs/AI_Setup.md"
     require_file "docs/InstallationDetails.md"
@@ -287,6 +318,7 @@ main() {
     verify_bundle_version
     verify_image_ref_substitution
     verify_dev_only_not_bundled
+    verify_setup_commands
     write_archives
 
     echo "[OK] Wrote ${DIST_DIR}/${BUNDLE_NAME}.zip"

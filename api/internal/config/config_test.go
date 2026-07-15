@@ -7,6 +7,8 @@ func TestLoadDefaultsPort(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("FASTSELL_VERSION", "")
 	t.Setenv("DATA_ROOT", "")
+	t.Setenv("FASTSELL_BACKUP_ROOT", "")
+	t.Setenv("FASTSELL_MIGRATION_ROOT", "")
 	t.Setenv("FRONTEND_HOSTING_MODE", "")
 	t.Setenv("FRONTEND_PUBLIC_URL", "")
 	t.Setenv("SYSTEM_AGENT_URL", "")
@@ -43,6 +45,12 @@ func TestLoadDefaultsPort(t *testing.T) {
 	}
 	if cfg.DataRoot != "/app/data" {
 		t.Fatalf("expected default data root, got %q", cfg.DataRoot)
+	}
+	if cfg.BackupRoot != "/app/backups" {
+		t.Fatalf("expected default backup root, got %q", cfg.BackupRoot)
+	}
+	if cfg.MigrationRoot != "/app/migrations" {
+		t.Fatalf("expected default migration root, got %q", cfg.MigrationRoot)
 	}
 	if cfg.FrontendHostingMode != "" {
 		t.Fatalf("expected empty frontend hosting mode by default, got %q", cfg.FrontendHostingMode)
@@ -120,6 +128,8 @@ func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("FASTSELL_VERSION", "v0.1.3")
 	t.Setenv("DATA_ROOT", "/tmp/data")
+	t.Setenv("FASTSELL_BACKUP_ROOT", "/tmp/backups")
+	t.Setenv("FASTSELL_MIGRATION_ROOT", "/tmp/migrations")
 	t.Setenv("FRONTEND_HOSTING_MODE", "nginx")
 	t.Setenv("FRONTEND_PUBLIC_URL", "http://localhost:8888")
 	t.Setenv("SYSTEM_AGENT_URL", "http://system-agent:8081")
@@ -150,6 +160,12 @@ func TestLoadUploadConfigFromEnvironment(t *testing.T) {
 	}
 	if cfg.DataRoot != "/tmp/data" {
 		t.Fatalf("expected data root from environment, got %q", cfg.DataRoot)
+	}
+	if cfg.BackupRoot != "/tmp/backups" {
+		t.Fatalf("expected backup root from environment, got %q", cfg.BackupRoot)
+	}
+	if cfg.MigrationRoot != "/tmp/migrations" {
+		t.Fatalf("expected migration root from environment, got %q", cfg.MigrationRoot)
 	}
 	if cfg.FrontendHostingMode != "nginx" {
 		t.Fatalf("expected frontend hosting mode from environment, got %q", cfg.FrontendHostingMode)

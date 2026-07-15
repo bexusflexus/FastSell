@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITHUB_REPOSITORY="bexusflexus/FastSell"
+GITHUB_API_ROOT="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+GITHUB_RELEASE_ROOT="https://github.com/${GITHUB_REPOSITORY}/releases/download"
+PHASE="startup"
+TEMP_ROOT=""
+
+usage() {
+    cat <<'USAGE'
+Usage:
+  sudo fastsell-update [--yes]
+  sudo fastsell-update --version vX.Y.Z [--yes] [--allow-rollback]
+
+Options:
+  --version vX.Y.Z  Install an exact stable production release.
+  --yes             Skip the normal update confirmation prompt.
+  --allow-rollback  Explicitly permit selecting an older exact version.
+                    Forward-only database migrations may make rollback unsafe.
+  -h, --help        Show this help.
+USAGE
+}
+
+fail() {
+    echo "[FAIL] fastsell-update failed during ${PHASE}: $*" >&2
+    exit 1
+}
+
+cleanup() {
+    local status=$?
+    trap - EXIT INT TERM HUP
+    if [ -n "${TEMP_ROOT}" ] && [ -d "${TEMP_ROOT}" ]; then
+        rm -rf -- "${TEMP_ROOT}"
+    fi
+    exit "${status}"
+}
+
+interrupted() {
+    echo "[FAIL] fastsell-update was interrupted during ${PHASE}." >&2
+    exit 130
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "required command is missing: $1"
+}
+
+valid_version() {
+    [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+read_installed_version() {
+    local value
+
+    value="$(awk -F= '$1 == "FASTSELL_VERSION" { value = substr($0, length($1) + 2) } END { print value }' "${ENV_FILE}")"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    [ -n "${value}" ] || fail "FASTSELL_VERSION is missing from the installed configuration"
+    printf '%s' "${value}"
+}
+
+json_string_field() {
+    local file="$1"
+    local key="$2"
+
+    awk -v key="${key}" '
+        match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\"[^\"]+\"") {
+            value = substr($0, RSTART, RLENGTH)
+            sub("^[^:]*:[[:space:]]*\"", "", value)
+            sub("\"$", "", value)
+            print value
+            exit
+        }
+    ' "${file}"
+}
+
+json_boolean_field() {
+    local file="$1"
+    local key="$2"
+
+    awk -v key="${key}" '
+        match($0, "\"" key "\"[[:space:]]*:[[:space:]]*(true|false)") {
+            value = substr($0, RSTART, RLENGTH)
+            sub("^.*:[[:space:]]*", "", value)
+            print value
+            exit
+        }
+    ' "${file}"
+}
+
+curl_download() {
+    local url="$1"
+    local output="$2"
+
+    curl \
+        --fail \
+        --location \
+        --silent \
+        --show-error \
+        --proto '=https' \
+        --tlsv1.2 \
+        --retry 2 \
+        --connect-timeout 15 \
+        --max-time 300 \
+        --header 'Accept: application/vnd.github+json' \
+        --header 'X-GitHub-Api-Version: 2022-11-28' \
+        --user-agent 'FastSell-production-updater' \
+        --output "${output}" \
+        "${url}"
+}
+
+discover_release() {
+    local requested="$1"
+    local metadata="${TEMP_ROOT}/release.json"
+    local endpoint
+    local tag
+    local draft
+    local prerelease
+
+    PHASE="release discovery"
+    if [ -n "${requested}" ]; then
+        endpoint="${GITHUB_API_ROOT}/releases/tags/${requested}"
+    else
+        endpoint="${GITHUB_API_ROOT}/releases/latest"
+    fi
+    curl_download "${endpoint}" "${metadata}" || fail "GitHub release metadata could not be downloaded"
+    [ -s "${metadata}" ] || fail "GitHub returned empty release metadata"
+
+    tag="$(json_string_field "${metadata}" tag_name)"
+    draft="$(json_boolean_field "${metadata}" draft)"
+    prerelease="$(json_boolean_field "${metadata}" prerelease)"
+    valid_version "${tag}" || fail "GitHub release metadata contains an invalid stable version"
+    [ "${draft}" = "false" ] || fail "draft releases are not eligible for production updates"
+    [ "${prerelease}" = "false" ] || fail "prereleases are not eligible for production updates"
+    if [ -n "${requested}" ] && [ "${tag}" != "${requested}" ]; then
+        fail "GitHub release metadata did not match the requested exact version"
+    fi
+    printf '%s' "${tag}"
+}
+
+version_is_newer() {
+    local left="${1#v}"
+    local right="${2#v}"
+
+    awk -v left="${left}" -v right="${right}" '
+        BEGIN {
+            split(left, l, ".")
+            split(right, r, ".")
+            for (i = 1; i <= 3; i++) {
+                if ((l[i] + 0) > (r[i] + 0)) exit 0
+                if ((l[i] + 0) < (r[i] + 0)) exit 1
+            }
+            exit 1
+        }
+    '
+}
+
+verify_checksum() {
+    local checksum_file="$1"
+    local archive_file="$2"
+    local archive_name="$3"
+    local matches="${TEMP_ROOT}/checksum.match"
+    local verification="${TEMP_ROOT}/checksum.verify"
+
+    PHASE="checksum verification"
+    awk -v name="${archive_name}" '
+        $2 == name && $1 ~ /^[0-9a-fA-F]{64}$/ { print tolower($1) "  " name }
+    ' "${checksum_file}" > "${matches}"
+    if [ "$(awk 'END { print NR + 0 }' "${matches}")" -ne 1 ]; then
+        fail "the release checksum file is malformed or does not contain exactly one setup archive checksum"
+    fi
+    cp "${matches}" "${verification}"
+    (
+        cd "$(dirname -- "${archive_file}")"
+        sha256sum -c "${verification}"
+    ) >/dev/null || fail "the setup archive checksum did not match the published release checksum"
+}
+
+validate_archive() {
+    local archive="$1"
+    local version="$2"
+    local top="fastsell-setup-${version}"
+    local names="${TEMP_ROOT}/archive.names"
+    local verbose="${TEMP_ROOT}/archive.verbose"
+    local entry
+    local component
+    local -a components
+
+    PHASE="archive validation"
+    tar --list --gzip --file "${archive}" --quoting-style=escape > "${names}" || \
+        fail "the setup archive could not be listed"
+    [ -s "${names}" ] || fail "the setup archive is empty"
+    tar --list --verbose --gzip --file "${archive}" --quoting-style=escape > "${verbose}" || \
+        fail "the setup archive could not be inspected"
+    if ! awk 'substr($0, 1, 1) == "-" || substr($0, 1, 1) == "d" { next } { exit 1 }' "${verbose}"; then
+        fail "the setup archive contains links, devices, or another unsupported entry type"
+    fi
+
+    while IFS= read -r entry; do
+        case "${entry}" in
+            ""|/*|*\\*)
+                fail "the setup archive contains an unsafe path"
+                ;;
+        esac
+        IFS='/' read -r -a components <<< "${entry}"
+        [ "${components[0]}" = "${top}" ] || fail "the setup archive contains an unexpected top-level path"
+        for component in "${components[@]}"; do
+            if [ "${component}" = ".." ] || [ "${component}" = "." ]; then
+                fail "the setup archive contains a traversal path"
+            fi
+        done
+    done < "${names}"
+
+    if [ -n "$(sort "${names}" | uniq -d)" ]; then
+        fail "the setup archive contains duplicate paths"
+    fi
+    for entry in \
+        "${top}/.env.example" \
+        "${top}/docker-compose.yml" \
+        "${top}/setup/linux/update.sh" \
+        "${top}/setup/linux/fastsell-update"; do
+        if ! awk -v required="${entry}" '$0 == required { found = 1 } END { exit found ? 0 : 1 }' "${names}"; then
+            fail "the setup archive is missing required file ${entry#${top}/}"
+        fi
+    done
+}
+
+confirm_update() {
+    local selected="$1"
+    local answer
+
+    if [ "${ASSUME_YES}" = true ]; then
+        return
+    fi
+    printf 'Proceed with FastSell update to %s? [y/N] ' "${selected}"
+    if ! read -r answer; then
+        answer=""
+    fi
+    case "${answer}" in
+        y|Y|yes|YES|Yes)
+            ;;
+        *)
+            echo "[OK] Update cancelled. FastSell was not changed."
+            exit 0
+            ;;
+    esac
+}
+
+run_downloaded_update() {
+    local bundle_dir="$1"
+    local status
+
+    PHASE="downloaded update.sh"
+    set +e
+    bash "${bundle_dir}/setup/linux/update.sh"
+    status=$?
+    set -e
+    if [ "${status}" -ne 0 ]; then
+        echo "[FAIL] Downloaded setup/linux/update.sh exited with status ${status}." >&2
+        exit "${status}"
+    fi
+
+    PHASE="updater refresh verification"
+    if [ ! -x "${UPDATE_COMMAND}" ]; then
+        fail "the successful update did not refresh ${UPDATE_COMMAND}"
+    fi
+    if ! cmp -s "${bundle_dir}/setup/linux/fastsell-update" "${UPDATE_COMMAND}"; then
+        fail "the installed updater does not match the successfully applied setup bundle"
+    fi
+}
+
+fastsell_update_main() {
+    local requested=""
+    local installed
+    local selected
+    local archive_name
+    local checksum_name
+    local download_dir
+    local extract_dir
+    local bundle_dir
+    local rollback=false
+
+    ASSUME_YES=false
+    ALLOW_ROLLBACK=false
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --version)
+                [ "$#" -ge 2 ] || fail "--version requires vX.Y.Z"
+                [ -z "${requested}" ] || fail "--version may only be supplied once"
+                requested="$2"
+                shift 2
+                ;;
+            --yes)
+                ASSUME_YES=true
+                shift
+                ;;
+            --allow-rollback)
+                ALLOW_ROLLBACK=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                return 0
+                ;;
+            *)
+                fail "unknown argument: $1"
+                ;;
+        esac
+    done
+
+    PHASE="preflight"
+    [ "$(id -u)" = "0" ] || fail "root privileges are required; run sudo fastsell-update"
+    if [ -n "${requested}" ] && ! valid_version "${requested}"; then
+        fail "--version must use the exact vX.Y.Z format"
+    fi
+    [ -d "${ROOT}" ] && [ -f "${ENV_FILE}" ] && [ -f "${COMPOSE_FILE}" ] || \
+        fail "FastSell is not installed at ${ROOT}"
+    for command in curl tar sha256sum mktemp awk sort uniq cmp; do
+        require_command "${command}"
+    done
+
+    installed="$(read_installed_version)"
+    valid_version "${installed}" || fail "installed FASTSELL_VERSION is not a stable vX.Y.Z release"
+    TEMP_ROOT="$(mktemp -d)" || fail "secure temporary workspace creation failed"
+    chmod 0700 "${TEMP_ROOT}"
+    trap cleanup EXIT
+    trap interrupted INT TERM HUP
+
+    selected="$(discover_release "${requested}")"
+    echo "[OK] Installed FastSell version: ${installed}"
+    echo "[OK] Selected stable release: ${selected}"
+    if [ "${installed}" = "${selected}" ]; then
+        echo "[OK] FastSell is already current. No changes were made."
+        return 0
+    fi
+    if version_is_newer "${installed}" "${selected}"; then
+        rollback=true
+        echo "[WARN] ${selected} is older than installed version ${installed}." >&2
+        echo "[WARN] Rollback may be unsafe after forward-only database migrations." >&2
+        if [ "${ALLOW_ROLLBACK}" != true ]; then
+            fail "rollback requires --allow-rollback in addition to the exact --version"
+        fi
+    elif [ "${ALLOW_ROLLBACK}" = true ]; then
+        fail "--allow-rollback is only valid when selecting an older exact version"
+    fi
+    if [ "${rollback}" = true ] && [ -z "${requested}" ]; then
+        fail "automatic latest-release discovery must not select a rollback"
+    fi
+
+    archive_name="fastsell-setup-${selected}.tar.gz"
+    checksum_name="fastsell-release-${selected}.sha256"
+    download_dir="${TEMP_ROOT}/download"
+    extract_dir="${TEMP_ROOT}/extract"
+    mkdir -m 0700 "${download_dir}" "${extract_dir}"
+
+    PHASE="setup archive download"
+    curl_download "${GITHUB_RELEASE_ROOT}/${selected}/${archive_name}" "${download_dir}/${archive_name}" || \
+        fail "the production setup archive could not be downloaded"
+    [ -s "${download_dir}/${archive_name}" ] || fail "the production setup archive download was incomplete"
+
+    PHASE="release checksum download"
+    curl_download "${GITHUB_RELEASE_ROOT}/${selected}/${checksum_name}" "${download_dir}/${checksum_name}" || \
+        fail "the release checksum file could not be downloaded"
+    [ -s "${download_dir}/${checksum_name}" ] || fail "the release checksum download was incomplete"
+
+    verify_checksum "${download_dir}/${checksum_name}" "${download_dir}/${archive_name}" "${archive_name}"
+    validate_archive "${download_dir}/${archive_name}" "${selected}"
+    confirm_update "${selected}"
+
+    PHASE="secure archive extraction"
+    tar --extract --gzip --file "${download_dir}/${archive_name}" \
+        --directory "${extract_dir}" --no-same-owner --no-same-permissions || \
+        fail "the validated setup archive could not be extracted"
+    bundle_dir="${extract_dir}/fastsell-setup-${selected}"
+    [ -f "${bundle_dir}/setup/linux/update.sh" ] || fail "validated update.sh is missing after extraction"
+    [ -f "${bundle_dir}/setup/linux/fastsell-update" ] || fail "validated updater is missing after extraction"
+
+    run_downloaded_update "${bundle_dir}"
+    PHASE="complete"
+    echo "[OK] FastSell update to ${selected} completed successfully."
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    ROOT="/srv/fastsell"
+    ENV_FILE="${ROOT}/config/.env"
+    COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
+    UPDATE_COMMAND="/usr/local/bin/fastsell-update"
+    fastsell_update_main "$@"
+fi

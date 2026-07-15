@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handlers.LocationHandler, containerTypeHandler *handlers.ContainerTypeHandler, inventoryGroupHandler *handlers.InventoryGroupHandler, uploadHandler *handlers.UploadHandler, reviewHandler *handlers.ReviewHandler, imageHandler *handlers.ImageHandler, itemHandler *handlers.ItemHandler, inventoryHandler *handlers.InventoryHandler, aiAdminHandler *handlers.AIAdminHandler, sellAdminHandler *handlers.SellAdminHandler, sellPublicHandler *handlers.SellPublicHandler, adminMetricsHandler *handlers.AdminMetricsHandler, adminSystemHandler *handlers.AdminSystemHandler, versionHandler *handlers.VersionHandler, listingDraftHandler *handlers.ListingDraftHandler, wholeSceneHandler *handlers.WholeSceneHandler, pool *pgxpool.Pool) http.Handler {
+func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handlers.LocationHandler, containerTypeHandler *handlers.ContainerTypeHandler, inventoryGroupHandler *handlers.InventoryGroupHandler, uploadHandler *handlers.UploadHandler, reviewHandler *handlers.ReviewHandler, imageHandler *handlers.ImageHandler, itemHandler *handlers.ItemHandler, inventoryHandler *handlers.InventoryHandler, aiAdminHandler *handlers.AIAdminHandler, sellAdminHandler *handlers.SellAdminHandler, sellPublicHandler *handlers.SellPublicHandler, adminMetricsHandler *handlers.AdminMetricsHandler, adminSystemHandler *handlers.AdminSystemHandler, adminBackupHandler *handlers.AdminBackupHandler, versionHandler *handlers.VersionHandler, listingDraftHandler *handlers.ListingDraftHandler, wholeSceneHandler *handlers.WholeSceneHandler, pool *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -27,6 +27,7 @@ func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handler
 	r.Get("/health/db", healthHandler.Database)
 
 	r.Route("/api", func(r chi.Router) {
+		r.Use(adminBackupHandler.MaintenanceMiddleware)
 		r.Get("/containers", containerHandler.List)
 		r.Post("/containers", containerHandler.Create)
 		r.Patch("/containers/{id}", containerHandler.Update)
@@ -117,6 +118,16 @@ func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handler
 		r.Post("/admin/sell/providers/{id}/disable", sellAdminHandler.DisableProvider)
 		r.Get("/admin/metrics", adminMetricsHandler.Get)
 		r.Get("/admin/system/health", adminSystemHandler.GetHealth)
+		r.Get("/admin/backup-settings", adminBackupHandler.GetSettings)
+		r.Put("/admin/backup-settings", adminBackupHandler.PutSettings)
+		r.Get("/admin/backups", adminBackupHandler.List)
+		r.Post("/admin/backups", adminBackupHandler.Create)
+		r.Post("/admin/backups/media", adminBackupHandler.CreateMedia)
+		r.Get("/admin/backups/jobs/{jobID}", adminBackupHandler.GetJob)
+		r.Post("/admin/backups/{backupID}/validate", adminBackupHandler.Validate)
+		r.Delete("/admin/backups/{backupID}", adminBackupHandler.Delete)
+		r.Post("/admin/backups/{backupID}/restore", adminBackupHandler.Restore)
+		r.Get("/admin/restores/jobs/{jobID}", adminBackupHandler.GetJob)
 		r.Get("/system/version", versionHandler.Get)
 	})
 
@@ -127,7 +138,7 @@ func devCORSMiddleware(next http.Handler) http.Handler {
 	// LAN/dev-only CORS for the first API baseline. Tighten this before exposing beyond local development.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Max-Age", "600")
 
