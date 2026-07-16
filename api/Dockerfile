@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/fastsell-backup ./cmd/fastsell-bac
 
 FROM alpine:3.20
 
-RUN apk add --no-cache postgresql16-client tar zstd
+RUN apk add --no-cache postgresql16-client tar tzdata zstd
 
 WORKDIR /app
 COPY --from=build /out/fastsell-api /app/fastsell-api

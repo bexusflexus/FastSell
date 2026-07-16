@@ -59,7 +59,8 @@ FastSell installation was not changed.
 
 To update the existing installation, run:
 
-  sudo fastsell-update
+  cd ~/fastsell-install
+  sudo ./setup/linux/fastsell-update
 
 For a manual update from an extracted setup bundle, run:
 

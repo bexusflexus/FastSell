@@ -12,7 +12,6 @@ NGINX_DIR="${CONFIG_DIR}/nginx"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 PROJECT_NAME="fastsell"
 DEFAULT_HTTP_PORT="8888"
-UPDATE_COMMAND="/usr/local/bin/fastsell-update"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
@@ -362,11 +361,6 @@ repair_runtime_permissions() {
     as_root chmod 0600 "${ENV_FILE}"
 }
 
-install_update_command() {
-    echo "[OK] Installing ${UPDATE_COMMAND}"
-    as_root install -m 0755 "${REPO_ROOT}/setup/linux/fastsell-update" "${UPDATE_COMMAND}"
-}
-
 show_runtime_status() {
     as_root ls -ld "${ROOT}"
     as_root ls -ld "${DATA_DIR}"
@@ -409,7 +403,6 @@ main() {
     echo "[OK] Starting FastSell"
     compose up -d
 
-    install_update_command
     echo "[OK] FastSell install complete"
     show_runtime_status
 }

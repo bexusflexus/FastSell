@@ -30,15 +30,16 @@ rm -- fastsell-setup.tar.gz
 sudo bash setup/linux/install.sh
 ```
 
-`~/fastsell-install` is only an extracted setup workspace. The installer creates the runtime root at `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, pulls prebuilt GHCR images, applies the database baseline, starts the stack, and installs `/usr/local/bin/fastsell-update`. The installer refuses to run if existing or partial FastSell runtime state is present.
+`~/fastsell-install` is the extracted setup workspace used for installation and updates. The installer creates the runtime root at `/srv/fastsell`, asks for a PostgreSQL password, copies Compose and migration files, pulls prebuilt GHCR images, applies the database baseline, and starts the stack. The installer refuses to run if existing or partial FastSell runtime state is present.
 
 After creating and validating a logical database backup in **Admin → Backup & Restore**, update to the latest stable release with:
 
 ```bash
-sudo fastsell-update
+cd ~/fastsell-install
+sudo ./setup/linux/fastsell-update
 ```
 
-Use `sudo fastsell-update --version vX.Y.Z` for an exact stable release. See the installation guide for checksum verification, rollback protection, and the manual setup-bundle fallback.
+Use `sudo ./setup/linux/fastsell-update --version vX.Y.Z` for an exact stable release. See the installation guide for checksum verification, rollback protection, and the manual setup-bundle method.
 
 Uninstall:
 
@@ -46,7 +47,7 @@ Uninstall:
 sudo bash setup/linux/uninstall.sh
 ```
 
-Default uninstall removes FastSell containers, installed app/runtime files, and `/usr/local/bin/fastsell-update`, but preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`. To permanently remove PostgreSQL data, uploaded images/files, generated exports, backups, config, and installed app/runtime files, back up first and run:
+Default uninstall removes FastSell containers and installed app/runtime files, but preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`. To permanently remove PostgreSQL data, uploaded images/files, generated exports, backups, config, and installed app/runtime files, back up first and run:
 
 ```bash
 sudo bash setup/linux/uninstall.sh --killmydata
