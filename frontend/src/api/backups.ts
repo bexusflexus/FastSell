@@ -5,11 +5,6 @@ export async function getBackupSettings(): Promise<BackupSettings> {
   return readJson(await apiFetch('/api/admin/backup-settings'));
 }
 
-export async function getBackupTimezones(): Promise<string[]> {
-  const response = await readJson<{ timezones: string[] }>(await apiFetch('/api/admin/backup/timezones'));
-  return response.timezones;
-}
-
 export async function saveBackupSettings(settings: BackupSettings): Promise<BackupSettings> {
   return readJson(await apiFetch('/api/admin/backup-settings', {
     method: 'PUT',

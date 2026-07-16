@@ -3,7 +3,6 @@ package backup
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 )
@@ -26,13 +25,11 @@ func (s *Service) StartRestore(backupID, confirmation string) (Job, error) {
 		release()
 		return Job{}, errors.New("failed to persist restore job state")
 	}
-	snapshot := snapshotJob(job)
-	jobID := snapshot.ID
 	go func() {
 		defer release()
-		s.runRestoreJob(context.Background(), jobID)
+		s.runRestoreJob(context.Background(), &job)
 	}()
-	return snapshot, nil
+	return job, nil
 }
 
 // RunRestore performs the same restore workflow synchronously for the recovery CLI.
@@ -50,32 +47,22 @@ func (s *Service) RunRestore(ctx context.Context, backupID, confirmation string)
 	if err := s.jobs.Save(job); err != nil {
 		return Job{}, errors.New("failed to persist restore job state")
 	}
-	s.runRestoreJob(ctx, job.ID)
-	job, err = s.jobs.Get(job.ID)
-	if err != nil {
-		return Job{}, errors.New("failed to load completed restore job state")
-	}
+	s.runRestoreJob(ctx, &job)
 	if job.State != "succeeded" {
 		return job, errors.New(job.ErrorMessage)
 	}
 	return job, nil
 }
 
-func (s *Service) runRestoreJob(ctx context.Context, jobID string) {
-	job, err := s.jobs.Get(jobID)
-	if err != nil {
-		return
-	}
-	backupID := job.BackupID
+func (s *Service) runRestoreJob(ctx context.Context, job *Job) {
 	started := s.now()
-	s.updateJob(jobID, func(job *Job) {
-		job.State = "running"
-		job.Phase = "entering maintenance mode"
-		job.StartedAt = &started
-	})
+	job.State = "running"
+	job.Phase = "entering maintenance mode"
+	job.StartedAt = &started
+	_ = s.jobs.Save(*job)
 
 	if err := s.gate.EnterAndWait(ctx); err != nil {
-		s.failRestore(jobID, "entering maintenance mode", "failed to quiesce application writes", false)
+		s.failRestore(job, "entering maintenance mode", "failed to quiesce application writes", false)
 		return
 	}
 	maintenanceMayExit := true
@@ -85,48 +72,45 @@ func (s *Service) runRestoreJob(ctx context.Context, jobID string) {
 		}
 	}()
 
-	phase := "validating selected backup"
-	s.setJobPhase(jobID, phase)
-	_, _, selectedPath, err := s.preRestoreValidation(ctx, backupID)
+	job.Phase = "validating selected backup"
+	_ = s.jobs.Save(*job)
+	_, _, selectedPath, err := s.preRestoreValidation(ctx, job.BackupID)
 	if err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 	targetInfo, err := s.database.Info(ctx)
 	if err != nil {
-		s.failRestore(jobID, "reading installed schema", "failed to read installed database schema", false)
+		s.failRestore(job, "reading installed schema", "failed to read installed database schema", false)
 		return
 	}
 
-	phase = "creating pre-restore backup"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "creating pre-restore backup"
+	_ = s.jobs.Save(*job)
 	preJob := newJob("database_backup", "pre_restore", s.now())
 	preStarted := s.now()
 	preJob.State = "running"
 	preJob.StartedAt = &preStarted
 	_ = s.jobs.Save(preJob)
 	_ = s.settings.RecordAttempt(ctx, preStarted)
-	preID, err := s.createDatabaseBackup(ctx, preJob.ID, false)
+	preID, err := s.createDatabaseBackup(ctx, &preJob, false)
 	preCompleted := s.now()
+	preJob.CompletedAt = &preCompleted
 	if err != nil {
-		message := sanitizeError(err.Error())
-		s.updateJob(preJob.ID, func(job *Job) {
-			job.State = "failed"
-			job.ErrorMessage = message
-			job.CompletedAt = &preCompleted
-		})
-		_ = s.settings.RecordFailure(ctx, preCompleted, message)
-		s.failRestore(jobID, phase, "pre-restore backup failed; the database was not modified", false)
+		preJob.State = "failed"
+		preJob.ErrorMessage = sanitizeError(err.Error())
+		_ = s.jobs.Save(preJob)
+		_ = s.settings.RecordFailure(ctx, preCompleted, preJob.ErrorMessage)
+		s.failRestore(job, "creating pre-restore backup", "pre-restore backup failed; the database was not modified", false)
 		return
 	}
-	s.updateJob(preJob.ID, func(job *Job) {
-		job.State = "succeeded"
-		job.Phase = "complete"
-		job.BackupID = preID
-		job.CompletedAt = &preCompleted
-	})
+	preJob.State = "succeeded"
+	preJob.Phase = "complete"
+	preJob.BackupID = preID
+	_ = s.jobs.Save(preJob)
 	_ = s.settings.RecordSuccess(ctx, preCompleted)
-	s.updateJob(jobID, func(job *Job) { job.PreRestoreID = preID })
+	job.PreRestoreID = preID
+	_ = s.jobs.Save(*job)
 
 	suffix := randomHex(6)
 	stagingName := "fastsell_restore_stage_" + suffix
@@ -142,57 +126,58 @@ func (s *Service) runRestoreJob(ctx context.Context, jobID string) {
 		}
 	}()
 
-	phase = "creating restore staging database"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "creating restore staging database"
+	_ = s.jobs.Save(*job)
 	if err := s.database.CreateDatabase(ctx, stagingName); err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 	stagingExists = true
 
-	phase = "restoring into staging database"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "restoring into staging database"
+	_ = s.jobs.Save(*job)
 	if err := s.restoreDump(ctx, selectedPath, stagingName); err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 
-	phase = "applying database migrations to staging"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "applying database migrations to staging"
+	_ = s.jobs.Save(*job)
 	if err := s.database.MigrateDatabase(ctx, stagingName); err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 
-	phase = "validating staged database health"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "validating staged database health"
+	_ = s.jobs.Save(*job)
 	if err := s.database.VerifyDatabase(ctx, stagingName, targetInfo.SchemaVersion); err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 
-	phase = "swapping restored database"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "swapping restored database"
+	_ = s.jobs.Save(*job)
 	if err := s.database.SwapDatabases(ctx, targetInfo.Name, stagingName, oldName); err != nil {
-		s.failRestore(jobID, phase, err.Error(), false)
+		s.failRestore(job, job.Phase, err.Error(), false)
 		return
 	}
 	stagingExists = false
 	swapped = true
 
-	phase = "validating active restored database"
-	s.setJobPhase(jobID, phase)
+	job.Phase = "validating active restored database"
+	_ = s.jobs.Save(*job)
 	restoreErr := s.database.VerifyDatabase(ctx, targetInfo.Name, targetInfo.SchemaVersion)
 	if restoreErr == nil {
-		phase = "rescheduling automatic backups"
-		s.setJobPhase(jobID, phase)
+		job.Phase = "rescheduling automatic backups"
+		_ = s.jobs.Save(*job)
 		_ = s.settings.RecordAttempt(ctx, preStarted)
 		_ = s.settings.RecordSuccess(ctx, preCompleted)
 		restoreErr = s.reapplySettings(ctx)
 	}
 	if restoreErr != nil {
-		failedPhase := phase
-		s.setJobPhase(jobID, "rolling back database swap")
+		failedPhase := job.Phase
+		job.Phase = "rolling back database swap"
+		_ = s.jobs.Save(*job)
 		rollbackErr := s.database.RollbackSwap(ctx, targetInfo.Name, oldName, failedName)
 		if rollbackErr == nil {
 			s.database.Reset()
@@ -203,33 +188,29 @@ func (s *Service) runRestoreJob(ctx context.Context, jobID string) {
 		}
 		if rollbackErr != nil {
 			maintenanceMayExit = false
-			s.updateJob(jobID, func(job *Job) {
-				job.RecoveryMessage = "Automatic database-swap rollback failed. Maintenance mode remains active. Preserve the pre-restore backup and retained databases and use the documented recovery command."
-			})
-			s.failRestore(jobID, failedPhase, "restore failed and database health is uncertain", true)
+			job.RecoveryMessage = "Automatic database-swap rollback failed. Maintenance mode remains active. Preserve the pre-restore backup and retained databases and use the documented recovery command."
+			s.failRestore(job, failedPhase, "restore failed and database health is uncertain", true)
 			return
 		}
 		if dropErr := s.database.DropDatabase(ctx, failedName); dropErr != nil {
 			log.Printf("failed restored database cleanup warning: %v", dropErr)
 		}
-		s.updateJob(jobID, func(job *Job) {
-			job.RecoveryMessage = "Restore failed, but the original database was swapped back and validated successfully. The pre-restore backup was preserved."
-		})
-		s.failRestore(jobID, failedPhase, "restore failed; automatic rollback succeeded", false)
+		job.RecoveryMessage = "Restore failed, but the original database was swapped back and validated successfully. The pre-restore backup was preserved."
+		s.failRestore(job, failedPhase, "restore failed; automatic rollback succeeded", false)
 		return
 	}
 
-	s.setJobPhase(jobID, "removing retained rollback database")
+	job.Phase = "removing retained rollback database"
+	_ = s.jobs.Save(*job)
 	if err := s.database.DropDatabase(ctx, oldName); err != nil {
 		log.Printf("retained rollback database cleanup warning: %v", err)
 	}
 
 	completed := s.now()
-	s.updateJob(jobID, func(job *Job) {
-		job.State = "succeeded"
-		job.Phase = "complete"
-		job.CompletedAt = &completed
-	})
+	job.State = "succeeded"
+	job.Phase = "complete"
+	job.CompletedAt = &completed
+	_ = s.jobs.Save(*job)
 }
 
 func (s *Service) restoreDump(ctx context.Context, path, databaseName string) error {
@@ -237,20 +218,19 @@ func (s *Service) restoreDump(ctx context.Context, path, databaseName string) er
 		"--dbname", databaseName, "--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error", path,
 	}
 	if err := s.runner.Run(ctx, "pg_restore", args, s.pgEnv); err != nil {
-		return fmt.Errorf("database restore command failed: %w", err)
+		return errors.New("database restore command failed")
 	}
 	return nil
 }
 
-func (s *Service) failRestore(jobID, phase, message string, maintenanceActive bool) {
+func (s *Service) failRestore(job *Job, phase, message string, maintenanceActive bool) {
 	completed := s.now()
-	s.updateJob(jobID, func(job *Job) {
-		job.State = "failed"
-		job.Phase = phase
-		job.ErrorMessage = sanitizeError(message)
-		job.CompletedAt = &completed
-		if maintenanceActive && job.RecoveryMessage == "" {
-			job.RecoveryMessage = "Maintenance mode remains active because database health is uncertain. Use the documented recovery command."
-		}
-	})
+	job.State = "failed"
+	job.Phase = phase
+	job.ErrorMessage = sanitizeError(message)
+	job.CompletedAt = &completed
+	if maintenanceActive && job.RecoveryMessage == "" {
+		job.RecoveryMessage = "Maintenance mode remains active because database health is uncertain. Use the documented recovery command."
+	}
+	_ = s.jobs.Save(*job)
 }

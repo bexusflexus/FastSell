@@ -6,15 +6,12 @@ GITHUB_API_ROOT="https://api.github.com/repos/${GITHUB_REPOSITORY}"
 GITHUB_RELEASE_ROOT="https://github.com/${GITHUB_REPOSITORY}/releases/download"
 PHASE="startup"
 TEMP_ROOT=""
-RUNNING_UPDATER_PATH=""
-UPDATER_REFRESH_TEMP=""
 
 usage() {
     cat <<'USAGE'
 Usage:
-  cd ~/fastsell-install
-  sudo ./setup/linux/fastsell-update [--yes]
-  sudo ./setup/linux/fastsell-update --version vX.Y.Z [--yes] [--allow-rollback]
+  sudo fastsell-update [--yes]
+  sudo fastsell-update --version vX.Y.Z [--yes] [--allow-rollback]
 
 Options:
   --version vX.Y.Z  Install an exact stable production release.
@@ -36,9 +33,6 @@ cleanup() {
     if [ -n "${TEMP_ROOT}" ] && [ -d "${TEMP_ROOT}" ]; then
         rm -rf -- "${TEMP_ROOT}"
     fi
-    if [ -n "${UPDATER_REFRESH_TEMP}" ]; then
-        rm -f -- "${UPDATER_REFRESH_TEMP}"
-    fi
     exit "${status}"
 }
 
@@ -49,13 +43,6 @@ interrupted() {
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "required command is missing: $1"
-}
-
-running_updater_path() {
-    local source_dir
-
-    source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
-    printf '%s/%s' "${source_dir}" "$(basename -- "${BASH_SOURCE[0]}")"
 }
 
 valid_version() {
@@ -274,37 +261,14 @@ run_downloaded_update() {
         echo "[FAIL] Downloaded setup/linux/update.sh exited with status ${status}." >&2
         exit "${status}"
     fi
-}
 
-refresh_workspace_updater() {
-    local bundle_dir="$1"
-    local source_updater="${bundle_dir}/setup/linux/fastsell-update"
-    local destination_dir
-    local destination_owner
-
-    PHASE="setup workspace updater refresh"
-    [ -f "${source_updater}" ] && [ ! -L "${source_updater}" ] || \
-        fail "the verified setup bundle updater is not a regular file"
-    [ -n "${RUNNING_UPDATER_PATH}" ] || fail "the running setup-workspace updater path is unavailable"
-    destination_dir="$(dirname -- "${RUNNING_UPDATER_PATH}")"
-    [ -d "${destination_dir}" ] || fail "the setup-workspace updater directory is unavailable"
-
-    UPDATER_REFRESH_TEMP="$(mktemp "${destination_dir}/.fastsell-update.tmp.XXXXXX")" || \
-        fail "a temporary setup-workspace updater could not be created"
-    if ! install -m 0755 "${source_updater}" "${UPDATER_REFRESH_TEMP}"; then
-        fail "the verified updater could not be copied into the setup workspace"
+    PHASE="updater refresh verification"
+    if [ ! -x "${UPDATE_COMMAND}" ]; then
+        fail "the successful update did not refresh ${UPDATE_COMMAND}"
     fi
-    if [ -e "${RUNNING_UPDATER_PATH}" ]; then
-        destination_owner="$(stat -c '%u:%g' "${RUNNING_UPDATER_PATH}")" || \
-            fail "the existing setup-workspace updater ownership could not be read"
-        if ! chown "${destination_owner}" "${UPDATER_REFRESH_TEMP}"; then
-            fail "the setup-workspace updater ownership could not be preserved"
-        fi
+    if ! cmp -s "${bundle_dir}/setup/linux/fastsell-update" "${UPDATE_COMMAND}"; then
+        fail "the installed updater does not match the successfully applied setup bundle"
     fi
-    if ! mv -f -- "${UPDATER_REFRESH_TEMP}" "${RUNNING_UPDATER_PATH}"; then
-        fail "the setup-workspace updater could not be replaced atomically"
-    fi
-    UPDATER_REFRESH_TEMP=""
 }
 
 fastsell_update_main() {
@@ -347,13 +311,13 @@ fastsell_update_main() {
     done
 
     PHASE="preflight"
-    [ "$(id -u)" = "0" ] || fail "root privileges are required; run sudo ./setup/linux/fastsell-update from the setup workspace"
+    [ "$(id -u)" = "0" ] || fail "root privileges are required; run sudo fastsell-update"
     if [ -n "${requested}" ] && ! valid_version "${requested}"; then
         fail "--version must use the exact vX.Y.Z format"
     fi
     [ -d "${ROOT}" ] && [ -f "${ENV_FILE}" ] && [ -f "${COMPOSE_FILE}" ] || \
         fail "FastSell is not installed at ${ROOT}"
-    for command in curl tar sha256sum mktemp awk sort uniq install stat chown mv; do
+    for command in curl tar sha256sum mktemp awk sort uniq cmp; do
         require_command "${command}"
     done
 
@@ -414,18 +378,14 @@ fastsell_update_main() {
     [ -f "${bundle_dir}/setup/linux/fastsell-update" ] || fail "validated updater is missing after extraction"
 
     run_downloaded_update "${bundle_dir}"
-    refresh_workspace_updater "${bundle_dir}"
     PHASE="complete"
     echo "[OK] FastSell update to ${selected} completed successfully."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    RUNNING_UPDATER_PATH="$(running_updater_path)" || {
-        echo "[FAIL] Could not resolve the running setup-workspace updater path." >&2
-        exit 1
-    }
     ROOT="/srv/fastsell"
     ENV_FILE="${ROOT}/config/.env"
     COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
+    UPDATE_COMMAND="/usr/local/bin/fastsell-update"
     fastsell_update_main "$@"
 fi

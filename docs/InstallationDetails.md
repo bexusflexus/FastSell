@@ -6,7 +6,7 @@ FastSell v0.1 uses Docker Compose for the public self-hosted deployment model.
 
 Normal users deploy FastSell from the setup bundle attached to GitHub Releases. The setup bundle contains runtime Compose files, migrations, setup scripts, and user documentation; it does not require a full repository clone.
 
-`~/fastsell-install` is the extracted setup workspace for initial installation and production updates. It remains separate from the FastSell runtime root.
+`~/fastsell-install` is an extracted setup workspace for initial installation or manual update fallback. Normal production updates use `/usr/local/bin/fastsell-update`; the setup workspace is separate from and disposable relative to the FastSell runtime root.
 
 ## Compose Stack
 
@@ -96,15 +96,14 @@ The installer performs a read-only preflight before any password prompt or mutat
 Normal production update after creating and validating an Admin logical database backup:
 
 ```bash
-cd ~/fastsell-install
-sudo ./setup/linux/fastsell-update
+sudo fastsell-update
 ```
 
-The command discovers or validates a stable `vX.Y.Z` GitHub Release, verifies the versioned setup tarball against `fastsell-release-vX.Y.Z.sha256`, rejects unsafe archive structure, extracts into a secure temporary directory, and runs that bundle's `update.sh`. `update.sh` preserves `/srv/fastsell/data`, `/srv/fastsell/backups`, and `/srv/fastsell/config/.env`, applies migrations and versioned production images, and verifies health. After successful release application, the bundled updater atomically refreshes its original setup-workspace copy from the verified extracted bundle. The manual method remains `sudo bash setup/linux/update.sh` from a verified extracted production bundle.
+The command discovers or validates a stable `vX.Y.Z` GitHub Release, verifies the versioned setup tarball against `fastsell-release-vX.Y.Z.sha256`, rejects unsafe archive structure, extracts into a secure temporary directory, and runs that bundle's `update.sh`. `update.sh` preserves `/srv/fastsell/data`, `/srv/fastsell/backups`, and `/srv/fastsell/config/.env`, applies migrations and versioned production images, verifies health, and refreshes the installed updater only after success. The manual fallback remains `sudo bash setup/linux/update.sh` from a verified extracted production bundle.
 
 Uninstall has two paths:
 
-1) Default uninstall preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
+1) Default uninstall preserves user data under `/srv/fastsell/data`, logical backups under `/srv/fastsell/backups`, and config under `/srv/fastsell/config`, while deliberately removing `/usr/local/bin/fastsell-update`. Preserved config includes `.env`, database credentials, app paths, port/image settings, and nginx config.
 
 ```bash
 sudo bash setup/linux/uninstall.sh
