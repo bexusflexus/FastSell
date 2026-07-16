@@ -57,10 +57,12 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
    ```
 
 7. Test the candidate once on staging.
-8. If QA fails, create a revert PR:
+8. If QA fails, roll back the candidate and prepare its retry branch:
 
     ```bash
-    ./scripts/release/fail_qa.sh <full_git_sha>
+    ./scripts/release/fail_qa.sh \
+      <failed-candidate-sha> \
+      <retry-branch-name>
     ```
 
 9. If QA succeeds, promote the tested candidate:
@@ -73,7 +75,7 @@ FastSell releases use GitHub Actions, GHCR, Docker Compose, and setup bundles. T
 
 ## Branch Protection
 
-Light branch protection on `main` is optional but recommended. It makes the expected PR validation environment explicit without changing the release workflow.
+Light branch protection with a nonempty required-check set on `main` is required by the automated merge helpers. This gives the scripts an authoritative expected check list; they fail closed rather than merging when required-check configuration is absent or unreadable.
 
 Configure it with:
 
@@ -203,19 +205,31 @@ Do not commit local staging configuration. Keep staging hostnames, private paths
 
 ## QA Failure
 
-Default failure handling creates a revert branch from current `origin/main`, reverts the failed squash-merge commit, pushes the branch, and opens a revert PR:
+The normal failed-QA command is turnkey and safe to rerun after interruption:
 
 ```bash
-./scripts/release/fail_qa.sh <full_git_sha>
+./scripts/release/fail_qa.sh \
+  <failed-candidate-sha> \
+  <retry-branch-name>
 ```
 
-For an emergency direct revert to `main`, use:
+It creates or reuses the checked revert PR, waits for every configured required check, squash-merges the rollback with the exact verified PR head, synchronizes local `main`, creates the retry branch, reapplies the failed candidate, and leaves that branch ready for the targeted correction. The operator does not need to manage the revert branch or PR manually. Required checks are polled for up to 30 minutes by default; a timeout reports the missing or pending checks and is safe to retry.
+
+For safety, an interrupted run resumes automatically only while the rollback merge is still the current `origin/main`. If `main` advances after the rollback, the script stops for manual review instead of assuming that later changes did not reapply the failed candidate. Git revert and cherry-pick conflicts remain in Git's normal conflict state and print explicit continue and abort commands.
+
+To complete only the checked rollback and stop on synchronized `main`, use:
 
 ```bash
-./scripts/release/fail_qa.sh <full_git_sha> --direct
+./scripts/release/fail_qa.sh <failed-candidate-sha> --rollback-only
 ```
 
-The direct path requires confirmation unless `--yes` is also supplied. Candidate images are not deleted by default.
+For an explicitly confirmed emergency direct revert to `main`, use:
+
+```bash
+./scripts/release/fail_qa.sh <failed-candidate-sha> --direct
+```
+
+Direct mode does not prepare a retry branch. Candidate images and candidate artifacts are never deleted by this workflow.
 
 ## Production Promotion
 
