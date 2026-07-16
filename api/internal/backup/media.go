@@ -89,7 +89,7 @@ func (s *Service) runMediaJob(ctx context.Context, job *Job) {
 	args := []string{"--zstd", "--create", "--file", partial, "--directory", s.cfg.DataRoot}
 	args = append(args, included...)
 	if err := s.runner.Run(ctx, "tar", args, nil); err != nil {
-		s.failMedia(job, "media archive command failed")
+		s.failMedia(job, fmt.Sprintf("media archive creation failed: %v", err))
 		return
 	}
 	if err := os.Chmod(partial, 0600); err != nil {
@@ -103,7 +103,7 @@ func (s *Service) runMediaJob(ctx context.Context, job *Job) {
 	job.Phase = "validating media archive"
 	_ = s.jobs.Save(*job)
 	if err := s.runner.Run(ctx, "tar", []string{"--zstd", "--list", "--file", partial}, nil); err != nil {
-		s.failMedia(job, "media archive validation failed")
+		s.failMedia(job, fmt.Sprintf("media archive validation failed: %v", err))
 		return
 	}
 	checksum, size, err := fileSHA256(partial)

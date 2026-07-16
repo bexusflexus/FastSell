@@ -227,16 +227,12 @@ verify_setup_commands() {
         echo "[FAIL] Installer guard is missing from the generated bundle." >&2
         exit 1
     fi
-    if ! file_contains_literal "${BUNDLE_DIR}/setup/linux/install.sh" "/usr/local/bin/fastsell-update"; then
-        echo "[FAIL] Generated install.sh does not install fastsell-update." >&2
-        exit 1
-    fi
-    if ! file_contains_literal "${BUNDLE_DIR}/setup/linux/update.sh" "/usr/local/bin/fastsell-update"; then
-        echo "[FAIL] Generated update.sh does not refresh fastsell-update." >&2
+    if ! file_contains_literal "${BUNDLE_DIR}/setup/linux/fastsell-update" "sudo ./setup/linux/fastsell-update"; then
+        echo "[FAIL] Bundled updater does not document the setup-workspace command." >&2
         exit 1
     fi
 
-    echo "[OK] Verified installer guard and updater commands in generated bundle."
+    echo "[OK] Verified installer guard and setup-workspace updater in generated bundle."
 }
 
 write_archives() {

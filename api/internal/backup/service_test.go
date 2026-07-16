@@ -119,6 +119,8 @@ type fakeRunner struct {
 	environments    [][]string
 	failDump        bool
 	failList        bool
+	failTarCreate   error
+	failTarList     error
 	failRestorePath string
 	blockDump       chan struct{}
 	blockRestore    chan struct{}
@@ -129,6 +131,7 @@ func (r *fakeRunner) Run(_ context.Context, name string, args []string, env []st
 	r.calls = append(r.calls, append([]string{name}, args...))
 	r.environments = append(r.environments, append([]string(nil), env...))
 	failDump, failList := r.failDump, r.failList
+	failTarCreate, failTarList := r.failTarCreate, r.failTarList
 	failRestorePath := r.failRestorePath
 	blockDump, blockRestore := r.blockDump, r.blockRestore
 	r.mu.Unlock()
@@ -158,7 +161,15 @@ func (r *fakeRunner) Run(_ context.Context, name string, args []string, env []st
 		return nil
 	}
 	if name == "tar" && contains(args, "--create") {
+		if failTarCreate != nil {
+			path := argumentAfter(args, "--file")
+			_ = os.WriteFile(path, []byte("partial zstd media fixture"), 0600)
+			return failTarCreate
+		}
 		return os.WriteFile(argumentAfter(args, "--file"), []byte("zstd media fixture"), 0600)
+	}
+	if name == "tar" && contains(args, "--list") && failTarList != nil {
+		return failTarList
 	}
 	return nil
 }
@@ -202,6 +213,7 @@ func TestSchedulerDisabledAndScheduleUpdates(t *testing.T) {
 	weekly := DefaultSettings()
 	weekly.SchedulePreset = "weekly"
 	weekly.CronExpression = "0 2 * * 0"
+	weekly.Timezone = "America/Chicago"
 	if err := scheduler.Start(weekly); err != nil {
 		t.Fatal(err)
 	}
@@ -609,6 +621,62 @@ func TestMediaArchiveRejectsSymlinksOutsideDurableRoots(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(service.cfg.Root, "media"))
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("unsafe media archive was published: %v %#v", err, entries)
+	}
+}
+
+func TestMediaArchiveValidationReportsTarReasonAndPublishesNothing(t *testing.T) {
+	service, _, _, runner := newTestService(t)
+	if err := os.MkdirAll(filepath.Join(service.cfg.DataRoot, "images"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	runner.failTarList = &CommandError{
+		Executable: "tar",
+		Status:     2,
+		Stderr:     "zstd: premature end",
+		Err:        errors.New("exit status 2"),
+	}
+	job, err := service.StartMediaArchive()
+	if err != nil {
+		t.Fatal(err)
+	}
+	job = waitJob(t, service, job.ID)
+	if job.State != "failed" || !strings.Contains(job.ErrorMessage, "media archive validation failed: tar exited with status 2: zstd: premature end") {
+		t.Fatalf("underlying tar validation error was not retained: %#v", job)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(service.cfg.Root, "media"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed archive published partial or completed artifacts: %#v", entries)
+	}
+}
+
+func TestMediaArchiveCreationFailureRemovesPartialFiles(t *testing.T) {
+	service, _, _, runner := newTestService(t)
+	if err := os.MkdirAll(filepath.Join(service.cfg.DataRoot, "images"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	runner.failTarCreate = &CommandError{
+		Executable: "tar",
+		Status:     1,
+		Stderr:     "images/file.jpg: file changed as we read it",
+		Err:        errors.New("exit status 1"),
+	}
+	job, err := service.StartMediaArchive()
+	if err != nil {
+		t.Fatal(err)
+	}
+	job = waitJob(t, service, job.ID)
+	if job.State != "failed" || !strings.Contains(job.ErrorMessage, "file changed as we read it") {
+		t.Fatalf("underlying tar creation error was not retained: %#v", job)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(service.cfg.Root, "media"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed archive published partial or completed artifacts: %#v", entries)
 	}
 }
 

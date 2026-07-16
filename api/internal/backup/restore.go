@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 )
@@ -218,7 +219,7 @@ func (s *Service) restoreDump(ctx context.Context, path, databaseName string) er
 		"--dbname", databaseName, "--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error", path,
 	}
 	if err := s.runner.Run(ctx, "pg_restore", args, s.pgEnv); err != nil {
-		return errors.New("database restore command failed")
+		return fmt.Errorf("database restore command failed: %w", err)
 	}
 	return nil
 }

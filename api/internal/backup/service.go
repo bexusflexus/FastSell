@@ -232,7 +232,7 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 	_ = s.jobs.Save(*job)
 	args := []string{"--file", dumpPartial, "--format=custom", "--no-owner", "--no-acl"}
 	if err := s.runner.Run(ctx, "pg_dump", args, s.pgEnv); err != nil {
-		return "", errors.New("database dump command failed")
+		return "", fmt.Errorf("database dump command failed: %w", err)
 	}
 	if err := os.Chmod(dumpPartial, 0600); err != nil {
 		return "", errors.New("failed to secure database dump permissions")
@@ -244,7 +244,7 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 	job.Phase = "validating database dump"
 	_ = s.jobs.Save(*job)
 	if err := s.runner.Run(ctx, "pg_restore", []string{"--list", dumpPartial}, s.pgEnv); err != nil {
-		return "", errors.New("database dump validation failed")
+		return "", fmt.Errorf("database dump validation failed: %w", err)
 	}
 
 	checksum, size, err := fileSHA256(dumpPartial)
@@ -503,7 +503,7 @@ func (s *Service) preRestoreValidation(ctx context.Context, id string) (Backup, 
 		return Backup{}, Metadata{}, "", errors.New("backup schema is newer than this FastSell installation")
 	}
 	if err := s.runner.Run(ctx, "pg_restore", []string{"--list", path}, s.pgEnv); err != nil {
-		return Backup{}, Metadata{}, "", errors.New("database dump validation failed")
+		return Backup{}, Metadata{}, "", fmt.Errorf("database dump validation failed: %w", err)
 	}
 	return backup, metadata, path, nil
 }

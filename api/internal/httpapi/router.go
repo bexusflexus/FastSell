@@ -120,6 +120,7 @@ func NewRouter(containerStore *handlers.ContainerStore, locationHandler *handler
 		r.Get("/admin/system/health", adminSystemHandler.GetHealth)
 		r.Get("/admin/backup-settings", adminBackupHandler.GetSettings)
 		r.Put("/admin/backup-settings", adminBackupHandler.PutSettings)
+		r.Get("/admin/backup/timezones", adminBackupHandler.GetTimezones)
 		r.Get("/admin/backups", adminBackupHandler.List)
 		r.Post("/admin/backups", adminBackupHandler.Create)
 		r.Post("/admin/backups/media", adminBackupHandler.CreateMedia)

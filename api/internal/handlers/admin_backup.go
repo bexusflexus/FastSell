@@ -14,11 +14,21 @@ import (
 )
 
 type AdminBackupHandler struct {
-	service *backupsvc.Service
+	service      *backupsvc.Service
+	timezoneFile string
 }
 
 func NewAdminBackupHandler(service *backupsvc.Service) *AdminBackupHandler {
-	return &AdminBackupHandler{service: service}
+	return &AdminBackupHandler{service: service, timezoneFile: backupsvc.TimezoneDataFile}
+}
+
+func (h *AdminBackupHandler) GetTimezones(w http.ResponseWriter, _ *http.Request) {
+	timezones, err := backupsvc.LoadTimezones(h.timezoneFile)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "server timezone data is unavailable")
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{"timezones": timezones})
 }
 
 func (h *AdminBackupHandler) MaintenanceMiddleware(next http.Handler) http.Handler {
