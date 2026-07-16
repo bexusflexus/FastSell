@@ -197,7 +197,7 @@ cd ~/fastsell-install
 sudo bash setup/linux/update.sh
 ```
 
-Do not use the end-user `fastsell-update` command for candidate QA. It intentionally accepts only stable production GitHub Releases and never downloads Actions candidate artifacts. A successful candidate `update.sh` run still refreshes `/usr/local/bin/fastsell-update` from the candidate bundle so the installed command is ready for later production releases; it does not make candidate discovery available to that command.
+Do not use the bundled production updater for candidate QA. It intentionally accepts only stable production GitHub Releases and never downloads Actions candidate artifacts. Use the candidate bundle's `update.sh` directly as shown above.
 
 Do not commit local staging configuration. Keep staging hostnames, private paths, private network details, and credentials out of the repo.
 

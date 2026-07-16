@@ -8,16 +8,40 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 var safeIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
 
-type JobStore struct{ root string }
+type JobStore struct {
+	root string
+	mu   sync.RWMutex
+}
 
 func NewJobStore(root string) *JobStore { return &JobStore{root: root} }
 
 func (s *JobStore) Save(job Job) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saveLocked(snapshotJob(job))
+}
+
+func (s *JobStore) Update(id string, update func(*Job)) (Job, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, err := s.getLocked(id)
+	if err != nil {
+		return Job{}, err
+	}
+	update(&job)
+	if err := s.saveLocked(job); err != nil {
+		return Job{}, err
+	}
+	return snapshotJob(job), nil
+}
+
+func (s *JobStore) saveLocked(job Job) error {
 	if !safeIDPattern.MatchString(job.ID) {
 		return errors.New("invalid job ID")
 	}
@@ -38,6 +62,43 @@ func (s *JobStore) Save(job Job) error {
 }
 
 func (s *JobStore) Get(id string) (Job, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, err := s.getLocked(id)
+	if err != nil {
+		return Job{}, err
+	}
+	return snapshotJob(job), nil
+}
+
+func (s *JobStore) List() ([]Job, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entries, err := os.ReadDir(s.root)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]Job, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		job, err := s.getLocked(strings.TrimSuffix(entry.Name(), ".json"))
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, snapshotJob(job))
+	}
+	sort.Slice(jobs, func(i, j int) bool {
+		if jobs[i].CreatedAt.Equal(jobs[j].CreatedAt) {
+			return jobs[i].ID < jobs[j].ID
+		}
+		return jobs[i].CreatedAt.Before(jobs[j].CreatedAt)
+	})
+	return jobs, nil
+}
+
+func (s *JobStore) getLocked(id string) (Job, error) {
 	if !safeIDPattern.MatchString(id) {
 		return Job{}, os.ErrNotExist
 	}
@@ -57,6 +118,8 @@ func (s *JobStore) Get(id string) (Job, error) {
 }
 
 func (s *JobStore) Sources() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	result := make(map[string]string)
 	entries, err := os.ReadDir(s.root)
 	if err != nil {
@@ -82,6 +145,8 @@ func (s *JobStore) Sources() map[string]string {
 }
 
 func (s *JobStore) RecoverInterrupted(now time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	entries, err := os.ReadDir(s.root)
 	if err != nil {
 		return false, err
@@ -92,7 +157,7 @@ func (s *JobStore) RecoverInterrupted(now time.Time) (bool, error) {
 			continue
 		}
 		id := strings.TrimSuffix(entry.Name(), ".json")
-		job, getErr := s.Get(id)
+		job, getErr := s.getLocked(id)
 		if getErr != nil || job.State != "queued" && job.State != "running" {
 			continue
 		}
@@ -103,11 +168,24 @@ func (s *JobStore) RecoverInterrupted(now time.Time) (bool, error) {
 		job.State = "failed"
 		job.ErrorMessage = "operation was interrupted by an application restart"
 		job.CompletedAt = &now
-		if saveErr := s.Save(job); saveErr != nil {
+		if saveErr := s.saveLocked(job); saveErr != nil {
 			return databaseUncertain, saveErr
 		}
 	}
 	return databaseUncertain, nil
+}
+
+func snapshotJob(job Job) Job {
+	copy := job
+	if job.StartedAt != nil {
+		started := *job.StartedAt
+		copy.StartedAt = &started
+	}
+	if job.CompletedAt != nil {
+		completed := *job.CompletedAt
+		copy.CompletedAt = &completed
+	}
+	return copy
 }
 
 func restorePhaseMayHaveModifiedDatabase(phase string) bool {

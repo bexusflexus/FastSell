@@ -10,6 +10,7 @@ import { AdminBackupPage } from './AdminBackupPage';
 
 vi.mock('../api/backups', () => ({
   getBackupSettings: vi.fn(), saveBackupSettings: vi.fn(), listBackups: vi.fn(),
+  getBackupTimezones: vi.fn(),
   createDatabaseBackup: vi.fn(), createMediaArchive: vi.fn(), getBackupJob: vi.fn(),
   validateBackup: vi.fn(), deleteBackup: vi.fn(), restoreBackup: vi.fn(),
 }));
@@ -33,6 +34,7 @@ const queued: BackupJob = {
 
 beforeEach(() => {
   vi.mocked(backupApi.getBackupSettings).mockResolvedValue({ ...settings });
+  vi.mocked(backupApi.getBackupTimezones).mockResolvedValue(['UTC', 'Africa/Abidjan', 'America/Chicago', 'America/Denver']);
   vi.mocked(backupApi.listBackups).mockResolvedValue([existing]);
   vi.mocked(backupApi.saveBackupSettings).mockImplementation(async (value) => value);
   vi.mocked(backupApi.createDatabaseBackup).mockResolvedValue(queued);
@@ -55,6 +57,37 @@ describe('AdminBackupPage', () => {
     expect(screen.getByText(existing.filename)).toBeInTheDocument();
     expect(screen.getByText('/srv/fastsell/backups/database')).toBeInTheDocument();
     expect(screen.getByText('Source: scheduled')).toBeInTheDocument();
+  });
+
+  it('loads grouped timezones, selects the saved zone, and saves the exact identifier', async () => {
+    vi.mocked(backupApi.getBackupSettings).mockResolvedValueOnce({ ...settings, timezone: 'America/Chicago' });
+    render(<AdminBackupPage />);
+    const select = await screen.findByLabelText('Effective timezone');
+    expect(select).toBeInstanceOf(HTMLSelectElement);
+    expect(select).toHaveValue('America/Chicago');
+    expect(screen.getByRole('option', { name: 'UTC' })).toBeInTheDocument();
+    expect(screen.getAllByRole('option').filter((option) => (option as HTMLOptionElement).value === 'UTC')).toHaveLength(1);
+    expect(screen.getByRole('group', { name: 'Africa' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'America' })).toBeInTheDocument();
+    fireEvent.change(select, { target: { value: 'America/Denver' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(backupApi.saveBackupSettings).toHaveBeenCalledWith(expect.objectContaining({ timezone: 'America/Denver' })));
+  });
+
+  it('keeps a saved timezone alias that is absent from zone1970.tab selectable', async () => {
+    vi.mocked(backupApi.getBackupSettings).mockResolvedValueOnce({ ...settings, timezone: 'US/Central' });
+    render(<AdminBackupPage />);
+    const select = await screen.findByLabelText('Effective timezone');
+    expect(select).toHaveValue('US/Central');
+    expect(screen.getByRole('option', { name: 'US/Central' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'US' })).toBeInTheDocument();
+  });
+
+  it('displays timezone list load failures', async () => {
+    vi.mocked(backupApi.getBackupTimezones).mockRejectedValueOnce(new ApiError('server timezone data is unavailable', 500));
+    render(<AdminBackupPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('server timezone data is unavailable');
+    expect(screen.queryByLabelText('Effective timezone')).not.toBeInTheDocument();
   });
 
   it('disables scheduling, supports advanced cron, and displays server validation errors', async () => {
