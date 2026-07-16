@@ -28,23 +28,26 @@ func (s *Service) StartMediaArchive() (Job, error) {
 		release()
 		return Job{}, errors.New("failed to persist media archive job state")
 	}
+	snapshot := snapshotJob(job)
+	jobID := snapshot.ID
 	go func() {
 		defer release()
-		s.runMediaJob(context.Background(), &job)
+		s.runMediaJob(context.Background(), jobID)
 	}()
-	return job, nil
+	return snapshot, nil
 }
 
-func (s *Service) runMediaJob(ctx context.Context, job *Job) {
+func (s *Service) runMediaJob(ctx context.Context, jobID string) {
 	started := s.now()
-	job.State = "running"
-	job.Phase = "collecting media directories"
-	job.StartedAt = &started
-	_ = s.jobs.Save(*job)
+	s.updateJob(jobID, func(job *Job) {
+		job.State = "running"
+		job.Phase = "collecting media directories"
+		job.StartedAt = &started
+	})
 
 	dataRootInfo, err := os.Lstat(s.cfg.DataRoot)
 	if err != nil || dataRootInfo.Mode()&os.ModeSymlink != 0 || !dataRootInfo.IsDir() {
-		s.failMedia(job, "media data root is not a safe directory")
+		s.failMedia(jobID, "media data root is not a safe directory")
 		return
 	}
 	included := make([]string, 0, 3)
@@ -55,17 +58,17 @@ func (s *Service) runMediaJob(ctx context.Context, job *Job) {
 			continue
 		}
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			s.failMedia(job, "durable media root is not a safe directory")
+			s.failMedia(jobID, "durable media root is not a safe directory")
 			return
 		}
 		if err := rejectMediaSymlinks(root); err != nil {
-			s.failMedia(job, "media archive refused a symbolic link in a durable media root")
+			s.failMedia(jobID, "media archive refused a symbolic link in a durable media root")
 			return
 		}
 		included = append(included, name)
 	}
 	if len(included) == 0 {
-		s.failMedia(job, "no durable media directories exist")
+		s.failMedia(jobID, "no durable media directories exist")
 		return
 	}
 
@@ -84,75 +87,74 @@ func (s *Service) runMediaJob(ctx context.Context, job *Job) {
 		_ = os.Remove(metadataPartial)
 	}()
 
-	job.Phase = "creating media archive"
-	_ = s.jobs.Save(*job)
+	s.setJobPhase(jobID, "creating media archive")
 	args := []string{"--zstd", "--create", "--file", partial, "--directory", s.cfg.DataRoot}
 	args = append(args, included...)
 	if err := s.runner.Run(ctx, "tar", args, nil); err != nil {
-		s.failMedia(job, fmt.Sprintf("media archive creation failed: %v", err))
+		s.failMedia(jobID, fmt.Sprintf("media archive creation failed: %v", err))
 		return
 	}
 	if err := os.Chmod(partial, 0600); err != nil {
-		s.failMedia(job, "failed to secure media archive permissions")
+		s.failMedia(jobID, "failed to secure media archive permissions")
 		return
 	}
 	if err := syncExistingFile(partial); err != nil {
-		s.failMedia(job, "failed to flush media archive")
+		s.failMedia(jobID, "failed to flush media archive")
 		return
 	}
-	job.Phase = "validating media archive"
-	_ = s.jobs.Save(*job)
+	s.setJobPhase(jobID, "validating media archive")
 	if err := s.runner.Run(ctx, "tar", []string{"--zstd", "--list", "--file", partial}, nil); err != nil {
-		s.failMedia(job, fmt.Sprintf("media archive validation failed: %v", err))
+		s.failMedia(jobID, fmt.Sprintf("media archive validation failed: %v", err))
 		return
 	}
 	checksum, size, err := fileSHA256(partial)
 	if err != nil {
-		s.failMedia(job, "failed to checksum media archive")
+		s.failMedia(jobID, "failed to checksum media archive")
 		return
 	}
 	if err := writeSyncedFile(checksumPartial, []byte(fmt.Sprintf("%s  %s\n", checksum, filename)), 0600); err != nil {
-		s.failMedia(job, "failed to write media checksum")
+		s.failMedia(jobID, "failed to write media checksum")
 		return
 	}
 	metadata := mediaMetadata{1, created.Format("2006-01-02T15:04:05Z07:00"), s.cfg.FastSellVersion, "tar.zst", size, included}
 	data, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
-		s.failMedia(job, "failed to encode media metadata")
+		s.failMedia(jobID, "failed to encode media metadata")
 		return
 	}
 	if err := writeSyncedFile(metadataPartial, append(data, '\n'), 0600); err != nil {
-		s.failMedia(job, "failed to write media metadata")
+		s.failMedia(jobID, "failed to write media metadata")
 		return
 	}
 	if err := os.Rename(checksumPartial, checksumFinal); err != nil {
-		s.failMedia(job, "failed to publish media checksum")
+		s.failMedia(jobID, "failed to publish media checksum")
 		return
 	}
 	if err := os.Rename(metadataPartial, metadataFinal); err != nil {
 		_ = os.Remove(checksumFinal)
-		s.failMedia(job, "failed to publish media metadata")
+		s.failMedia(jobID, "failed to publish media metadata")
 		return
 	}
 	if err := os.Rename(partial, final); err != nil {
 		_ = os.Remove(checksumFinal)
 		_ = os.Remove(metadataFinal)
-		s.failMedia(job, "failed to publish media archive")
+		s.failMedia(jobID, "failed to publish media archive")
 		return
 	}
 	if err := syncDirectory(dir); err != nil {
 		_ = os.Remove(final)
 		_ = os.Remove(checksumFinal)
 		_ = os.Remove(metadataFinal)
-		s.failMedia(job, "failed to flush media archive directory")
+		s.failMedia(jobID, "failed to flush media archive directory")
 		return
 	}
 	completed := s.now()
-	job.State = "succeeded"
-	job.Phase = "complete"
-	job.BackupID = filename
-	job.CompletedAt = &completed
-	_ = s.jobs.Save(*job)
+	s.updateJob(jobID, func(job *Job) {
+		job.State = "succeeded"
+		job.Phase = "complete"
+		job.BackupID = filename
+		job.CompletedAt = &completed
+	})
 }
 
 func rejectMediaSymlinks(root string) error {
@@ -180,10 +182,11 @@ func uniqueMediaFilename(dir, stem string) string {
 	return fmt.Sprintf("%s-%s.tar.zst", stem, randomHex(4))
 }
 
-func (s *Service) failMedia(job *Job, message string) {
+func (s *Service) failMedia(jobID, message string) {
 	completed := s.now()
-	job.State = "failed"
-	job.ErrorMessage = sanitizeError(message)
-	job.CompletedAt = &completed
-	_ = s.jobs.Save(*job)
+	s.updateJob(jobID, func(job *Job) {
+		job.State = "failed"
+		job.ErrorMessage = sanitizeError(message)
+		job.CompletedAt = &completed
+	})
 }
