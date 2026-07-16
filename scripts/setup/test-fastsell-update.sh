@@ -75,23 +75,6 @@ chmod +x "${MOCK_BIN}/id" "${MOCK_BIN}/curl"
 PATH="${MOCK_BIN}:${PATH}"
 export PATH
 
-legacy_path='/usr/local/bin/fastsell-update'
-for script in install.sh update.sh uninstall.sh; do
-    if rg -n -F "${legacy_path}" "${REPO_ROOT}/setup/linux/${script}" >/dev/null; then
-        echo "[FAIL] ${script} still manages the legacy updater path" >&2
-        exit 1
-    fi
-    if rg -n 'UPDATE_COMMAND|sudo fastsell-update' "${REPO_ROOT}/setup/linux/${script}" >/dev/null; then
-        echo "[FAIL] ${script} still depends on a global updater command" >&2
-        exit 1
-    fi
-done
-if [ ! -x "${REPO_ROOT}/setup/linux/fastsell-update" ]; then
-    echo "[FAIL] bundled setup/linux/fastsell-update is not executable" >&2
-    exit 1
-fi
-echo "[OK] install, update, and uninstall do not manage a global updater; bundled updater is executable"
-
 make_case() {
     local name="$1"
     local installed="$2"
@@ -108,7 +91,6 @@ make_case() {
         "${case_root}/runtime/data/images" \
         "${case_root}/runtime/backups" \
         "${case_root}/tmp" \
-        "${case_root}/workspace/setup/linux" \
         "${bundle_root}/setup/linux"
     printf 'FASTSELL_VERSION=%s\nPRESERVE_VALUE=unchanged\n' "${installed}" > "${case_root}/runtime/config/.env"
     printf 'services: {}\n' > "${case_root}/runtime/compose/docker-compose.yml"
@@ -118,14 +100,9 @@ make_case() {
     printf 'services: {}\n' > "${bundle_root}/docker-compose.yml"
     cat > "${bundle_root}/setup/linux/fastsell-update" <<'UPDATER'
 #!/usr/bin/env bash
-printf 'verified release updater\n'
+printf 'fixture updater\n'
 UPDATER
     chmod +x "${bundle_root}/setup/linux/fastsell-update"
-    cat > "${case_root}/workspace/setup/linux/fastsell-update" <<'UPDATER'
-#!/usr/bin/env bash
-printf 'pre-update workspace updater\n'
-UPDATER
-    chmod 0750 "${case_root}/workspace/setup/linux/fastsell-update"
     cat > "${bundle_root}/setup/linux/update.sh" <<'UPDATE'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -133,6 +110,7 @@ printf 'called\n' > "${MOCK_UPDATE_CALLED}"
 if [ "${MOCK_UPDATE_FAIL:-false}" = true ]; then
     exit 7
 fi
+install -m 0755 "$(dirname -- "${BASH_SOURCE[0]}")/fastsell-update" "${UPDATE_COMMAND}"
 UPDATE
     chmod +x "${bundle_root}/setup/linux/update.sh"
 
@@ -175,23 +153,15 @@ PY
     ROOT="${case_root}/runtime"
     ENV_FILE="${ROOT}/config/.env"
     COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
-    RUNNING_UPDATER_PATH="${case_root}/workspace/setup/linux/fastsell-update"
-    WORKSPACE_UPDATER_HASH="$(sha256sum "${RUNNING_UPDATER_PATH}")"
-    WORKSPACE_UPDATER_MODE="$(stat -c '%a' "${RUNNING_UPDATER_PATH}")"
-    LEGACY_SENTINEL="${case_root}/usr/local/bin/fastsell-update"
-    mkdir -p "$(dirname -- "${LEGACY_SENTINEL}")"
-    printf 'legacy sentinel must remain unchanged\n' > "${LEGACY_SENTINEL}"
-    chmod 0711 "${LEGACY_SENTINEL}"
-    LEGACY_SENTINEL_HASH="$(sha256sum "${LEGACY_SENTINEL}")"
-    LEGACY_SENTINEL_MODE="$(stat -c '%a' "${LEGACY_SENTINEL}")"
+    UPDATE_COMMAND="${case_root}/installed/fastsell-update"
+    mkdir -p "$(dirname -- "${UPDATE_COMMAND}")"
     TMPDIR="${case_root}/tmp"
     MOCK_RELEASE_JSON="${case_root}/release.json"
     MOCK_ARCHIVE="${archive}"
     MOCK_CHECKSUM="${case_root}/release.sha256"
     MOCK_CURL_LOG="${case_root}/curl.log"
     MOCK_UPDATE_CALLED="${case_root}/update.called"
-    export ROOT ENV_FILE COMPOSE_FILE TMPDIR RUNNING_UPDATER_PATH
-    export WORKSPACE_UPDATER_HASH WORKSPACE_UPDATER_MODE LEGACY_SENTINEL LEGACY_SENTINEL_HASH LEGACY_SENTINEL_MODE
+    export ROOT ENV_FILE COMPOSE_FILE UPDATE_COMMAND TMPDIR
     export MOCK_RELEASE_JSON MOCK_ARCHIVE MOCK_CHECKSUM MOCK_CURL_LOG MOCK_UPDATE_CALLED
     unset MOCK_METADATA_FAIL MOCK_ARCHIVE_FAIL MOCK_ARCHIVE_EMPTY MOCK_CHECKSUM_FAIL MOCK_UPDATE_FAIL
     MOCK_ROOT=true
@@ -206,10 +176,6 @@ run_updater() {
     RUN_OUTPUT="$(printf '%b' "${input}" | (fastsell_update_main "$@") 2>&1)"
     RUN_STATUS=$?
     set -e
-    if [ ! -e "${LEGACY_SENTINEL}" ] || [ "$(sha256sum "${LEGACY_SENTINEL}")" != "${LEGACY_SENTINEL_HASH}" ] || [ "$(stat -c '%a' "${LEGACY_SENTINEL}")" != "${LEGACY_SENTINEL_MODE}" ]; then
-        echo "[FAIL] updater altered the isolated legacy global sentinel" >&2
-        exit 1
-    fi
 }
 
 assert_status() {
@@ -226,18 +192,6 @@ assert_status() {
 assert_clean_temp() {
     if [ -n "$(find "${TMPDIR}" -mindepth 1 -print -quit)" ]; then
         echo "[FAIL] temporary files were not cleaned: ${TMPDIR}" >&2
-        exit 1
-    fi
-    if [ -n "$(find "$(dirname -- "${RUNNING_UPDATER_PATH}")" -maxdepth 1 -name '.fastsell-update.tmp.*' -print -quit)" ]; then
-        echo "[FAIL] workspace updater temporary file was not cleaned" >&2
-        exit 1
-    fi
-}
-
-assert_workspace_updater_unchanged() {
-    local name="$1"
-    if [ "$(sha256sum "${RUNNING_UPDATER_PATH}")" != "${WORKSPACE_UPDATER_HASH}" ] || [ "$(stat -c '%a' "${RUNNING_UPDATER_PATH}")" != "${WORKSPACE_UPDATER_MODE}" ]; then
-        echo "[FAIL] ${name}: setup-workspace updater changed" >&2
         exit 1
     fi
 }
@@ -265,14 +219,15 @@ run_updater "" --yes
 assert_status 0 "valid latest stable release and --yes"
 rg -Fq '/releases/latest' "${MOCK_CURL_LOG}" || { echo "[FAIL] latest update did not use the stable latest-release endpoint" >&2; exit 1; }
 [ -f "${MOCK_UPDATE_CALLED}" ] || { echo "[FAIL] downloaded update.sh did not run" >&2; exit 1; }
-cmp -s "${MOCK_ARCHIVE%/*}/fixture/fastsell-setup-v0.1.4/setup/linux/fastsell-update" "${RUNNING_UPDATER_PATH}" || { echo "[FAIL] successful update did not refresh the setup-workspace updater from the verified bundle" >&2; exit 1; }
-[ -x "${RUNNING_UPDATER_PATH}" ] || { echo "[FAIL] refreshed setup-workspace updater is not executable" >&2; exit 1; }
-[ "$(stat -c '%a' "${RUNNING_UPDATER_PATH}")" = "755" ] || { echo "[FAIL] refreshed setup-workspace updater mode is not 0755" >&2; exit 1; }
+cmp -s "${MOCK_ARCHIVE%/*}/fixture/fastsell-setup-v0.1.4/setup/linux/fastsell-update" "${UPDATE_COMMAND}" || {
+    echo "[FAIL] updater was not refreshed after success" >&2
+    exit 1
+}
 [ "$(sha256sum "${ENV_FILE}")" = "${env_before}" ] || { echo "[FAIL] .env changed" >&2; exit 1; }
 [ "$(sha256sum "${ROOT}/data/images/sentinel")" = "${data_before}" ] || { echo "[FAIL] runtime data changed" >&2; exit 1; }
 [ "$(sha256sum "${ROOT}/backups/sentinel")" = "${backup_before}" ] || { echo "[FAIL] backup data changed" >&2; exit 1; }
 assert_clean_temp
-echo "[OK] setup-workspace updater success, legacy sentinel, and runtime preservation"
+echo "[OK] updater refresh and runtime preservation"
 
 make_case draft v0.1.3 v0.1.4
 printf '{"tag_name":"v0.1.4","draft":true,"prerelease":false}\n' > "${MOCK_RELEASE_JSON}"
@@ -340,7 +295,6 @@ backup_before="$(sha256sum "${ROOT}/backups/sentinel")"
 printf '%064d  fastsell-setup-v0.1.4.tar.gz\n' 0 > "${MOCK_CHECKSUM}"
 run_updater "" --yes
 [ "${RUN_STATUS}" -ne 0 ] && [[ "${RUN_OUTPUT}" == *"checksum did not match"* ]] || { echo "[FAIL] checksum mismatch accepted" >&2; exit 1; }
-assert_workspace_updater_unchanged "checksum failure"
 [ "$(sha256sum "${ENV_FILE}")" = "${env_before}" ] || { echo "[FAIL] checksum failure changed .env" >&2; exit 1; }
 [ "$(sha256sum "${ROOT}/data/images/sentinel")" = "${data_before}" ] || { echo "[FAIL] checksum failure changed runtime data" >&2; exit 1; }
 [ "$(sha256sum "${ROOT}/backups/sentinel")" = "${backup_before}" ] || { echo "[FAIL] checksum failure changed backups" >&2; exit 1; }
@@ -358,7 +312,6 @@ echo "[OK] malformed checksum"
 make_case unsafe-archive v0.1.3 v0.1.4 unsafe
 run_updater "" --yes
 [ "${RUN_STATUS}" -ne 0 ] && [[ "${RUN_OUTPUT}" == *"unsafe path"* || "${RUN_OUTPUT}" == *"unexpected top-level"* ]] || { echo "[FAIL] unsafe archive accepted" >&2; exit 1; }
-assert_workspace_updater_unchanged "archive validation failure"
 assert_clean_temp
 echo "[OK] unsafe archive path"
 
@@ -380,7 +333,7 @@ MOCK_UPDATE_FAIL=true
 export MOCK_UPDATE_FAIL
 run_updater "" --yes
 assert_status 7 "update.sh failure propagation"
-assert_workspace_updater_unchanged "update.sh failure"
+[ ! -e "${UPDATE_COMMAND}" ] || { echo "[FAIL] updater refreshed after failed update.sh" >&2; exit 1; }
 assert_clean_temp
 
 make_case rollback-protection v0.2.0 v0.1.4

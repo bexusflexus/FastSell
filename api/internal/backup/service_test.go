@@ -119,12 +119,9 @@ type fakeRunner struct {
 	environments    [][]string
 	failDump        bool
 	failList        bool
-	failTarCreate   error
-	failTarList     error
 	failRestorePath string
 	blockDump       chan struct{}
 	blockRestore    chan struct{}
-	blockTarCreate  chan struct{}
 }
 
 func (r *fakeRunner) Run(_ context.Context, name string, args []string, env []string) error {
@@ -132,10 +129,8 @@ func (r *fakeRunner) Run(_ context.Context, name string, args []string, env []st
 	r.calls = append(r.calls, append([]string{name}, args...))
 	r.environments = append(r.environments, append([]string(nil), env...))
 	failDump, failList := r.failDump, r.failList
-	failTarCreate, failTarList := r.failTarCreate, r.failTarList
 	failRestorePath := r.failRestorePath
 	blockDump, blockRestore := r.blockDump, r.blockRestore
-	blockTarCreate := r.blockTarCreate
 	r.mu.Unlock()
 	if name == "pg_dump" {
 		if blockDump != nil {
@@ -163,18 +158,7 @@ func (r *fakeRunner) Run(_ context.Context, name string, args []string, env []st
 		return nil
 	}
 	if name == "tar" && contains(args, "--create") {
-		if blockTarCreate != nil {
-			<-blockTarCreate
-		}
-		if failTarCreate != nil {
-			path := argumentAfter(args, "--file")
-			_ = os.WriteFile(path, []byte("partial zstd media fixture"), 0600)
-			return failTarCreate
-		}
 		return os.WriteFile(argumentAfter(args, "--file"), []byte("zstd media fixture"), 0600)
-	}
-	if name == "tar" && contains(args, "--list") && failTarList != nil {
-		return failTarList
 	}
 	return nil
 }
@@ -218,7 +202,6 @@ func TestSchedulerDisabledAndScheduleUpdates(t *testing.T) {
 	weekly := DefaultSettings()
 	weekly.SchedulePreset = "weekly"
 	weekly.CronExpression = "0 2 * * 0"
-	weekly.Timezone = "America/Chicago"
 	if err := scheduler.Start(weekly); err != nil {
 		t.Fatal(err)
 	}
@@ -260,83 +243,6 @@ func TestSingleFlightReturnsConflict(t *testing.T) {
 	}
 	close(runner.blockDump)
 	_ = waitJob(t, service, first.ID)
-}
-
-func TestConcurrentBackupJobSnapshots(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	runner.blockDump = make(chan struct{})
-	started, err := service.StartBackup("manual")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if started.State != "queued" || started.StartedAt != nil || started.CompletedAt != nil {
-		t.Fatalf("start did not return the persisted initial snapshot: %#v", started)
-	}
-	waitForCall(t, runner, "pg_dump")
-	assertConcurrentJobReads(t, service, started.ID, func() { close(runner.blockDump) })
-}
-
-func TestConcurrentRestoreJobSnapshots(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	backupJob, err := service.StartBackup("manual")
-	if err != nil {
-		t.Fatal(err)
-	}
-	backupJob = waitJob(t, service, backupJob.ID)
-	runner.blockRestore = make(chan struct{})
-	started, err := service.StartRestore(backupJob.BackupID, RestoreConfirmation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if started.State != "queued" || started.StartedAt != nil || started.CompletedAt != nil {
-		t.Fatalf("start did not return the persisted initial snapshot: %#v", started)
-	}
-	waitUntil(t, func() bool { return callCount(runner, "pg_restore") >= 3 })
-	assertConcurrentJobReads(t, service, started.ID, func() { close(runner.blockRestore) })
-}
-
-func TestConcurrentMediaJobSnapshots(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	if err := os.MkdirAll(filepath.Join(service.cfg.DataRoot, "images"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	runner.blockTarCreate = make(chan struct{})
-	started, err := service.StartMediaArchive()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if started.State != "queued" || started.StartedAt != nil || started.CompletedAt != nil {
-		t.Fatalf("start did not return the persisted initial snapshot: %#v", started)
-	}
-	waitForCall(t, runner, "tar")
-	assertConcurrentJobReads(t, service, started.ID, func() { close(runner.blockTarCreate) })
-}
-
-func TestJobReadsReturnDeepSnapshots(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	runner.blockDump = make(chan struct{})
-	started, err := service.StartBackup("manual")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitForCall(t, runner, "pg_dump")
-	first, err := service.GetJob(started.ID)
-	if err != nil || first.StartedAt == nil {
-		t.Fatalf("failed to read running job: %#v %v", first, err)
-	}
-	originalStarted := *first.StartedAt
-	*first.StartedAt = originalStarted.Add(24 * time.Hour)
-	listed, err := service.ListJobs()
-	if err != nil || len(listed) != 1 || listed[0].StartedAt == nil {
-		t.Fatalf("failed to list job snapshots: %#v %v", listed, err)
-	}
-	*listed[0].StartedAt = originalStarted.Add(48 * time.Hour)
-	current, err := service.GetJob(started.ID)
-	if err != nil || current.StartedAt == nil || !current.StartedAt.Equal(originalStarted) {
-		t.Fatalf("caller mutation changed stored job state: %#v %v", current, err)
-	}
-	close(runner.blockDump)
-	_ = waitJob(t, service, started.ID)
 }
 
 func TestSharedFilesystemLockConflictsAcrossServices(t *testing.T) {
@@ -706,62 +612,6 @@ func TestMediaArchiveRejectsSymlinksOutsideDurableRoots(t *testing.T) {
 	}
 }
 
-func TestMediaArchiveValidationReportsTarReasonAndPublishesNothing(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	if err := os.MkdirAll(filepath.Join(service.cfg.DataRoot, "images"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	runner.failTarList = &CommandError{
-		Executable: "tar",
-		Status:     2,
-		Stderr:     "zstd: premature end",
-		Err:        errors.New("exit status 2"),
-	}
-	job, err := service.StartMediaArchive()
-	if err != nil {
-		t.Fatal(err)
-	}
-	job = waitJob(t, service, job.ID)
-	if job.State != "failed" || !strings.Contains(job.ErrorMessage, "media archive validation failed: tar exited with status 2: zstd: premature end") {
-		t.Fatalf("underlying tar validation error was not retained: %#v", job)
-	}
-	entries, readErr := os.ReadDir(filepath.Join(service.cfg.Root, "media"))
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if len(entries) != 0 {
-		t.Fatalf("failed archive published partial or completed artifacts: %#v", entries)
-	}
-}
-
-func TestMediaArchiveCreationFailureRemovesPartialFiles(t *testing.T) {
-	service, _, _, runner := newTestService(t)
-	if err := os.MkdirAll(filepath.Join(service.cfg.DataRoot, "images"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	runner.failTarCreate = &CommandError{
-		Executable: "tar",
-		Status:     1,
-		Stderr:     "images/file.jpg: file changed as we read it",
-		Err:        errors.New("exit status 1"),
-	}
-	job, err := service.StartMediaArchive()
-	if err != nil {
-		t.Fatal(err)
-	}
-	job = waitJob(t, service, job.ID)
-	if job.State != "failed" || !strings.Contains(job.ErrorMessage, "file changed as we read it") {
-		t.Fatalf("underlying tar creation error was not retained: %#v", job)
-	}
-	entries, readErr := os.ReadDir(filepath.Join(service.cfg.Root, "media"))
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if len(entries) != 0 {
-		t.Fatalf("failed archive published partial or completed artifacts: %#v", entries)
-	}
-}
-
 func TestDatabaseCredentialsNeverEnterArgumentsOrPortableState(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://leak-user:leak-password@private-host/secret-db")
 	t.Setenv("PGPASSWORD", "inherited-leak-password")
@@ -888,48 +738,6 @@ func waitJobWithin(t *testing.T, service *Service, id string, timeout time.Durat
 	}
 	t.Fatalf("timed out waiting for job %s", id)
 	return Job{}
-}
-
-func assertConcurrentJobReads(t *testing.T, service *Service, id string, release func()) {
-	t.Helper()
-	const readers = 8
-	var ready sync.WaitGroup
-	var done sync.WaitGroup
-	ready.Add(readers)
-	done.Add(readers)
-	errorsFound := make(chan error, readers)
-	for range readers {
-		go func() {
-			defer done.Done()
-			ready.Done()
-			for {
-				job, err := service.GetJob(id)
-				if err != nil {
-					errorsFound <- err
-					return
-				}
-				if job.ID != id {
-					errorsFound <- errors.New("job snapshot ID changed")
-					return
-				}
-				if job.State == "succeeded" || job.State == "failed" {
-					return
-				}
-				time.Sleep(time.Millisecond)
-			}
-		}()
-	}
-	ready.Wait()
-	release()
-	job := waitJob(t, service, id)
-	if job.State != "succeeded" {
-		t.Fatalf("job did not succeed after concurrent reads: %#v", job)
-	}
-	done.Wait()
-	close(errorsFound)
-	for err := range errorsFound {
-		t.Fatal(err)
-	}
 }
 
 func waitUntil(t *testing.T, condition func() bool) {

@@ -8,6 +8,7 @@ BACKUP_DIR="${ROOT}/backups"
 ENV_FILE="${CONFIG_DIR}/.env"
 COMPOSE_FILE="${ROOT}/compose/docker-compose.yml"
 PROJECT_NAME="fastsell"
+UPDATE_COMMAND="/usr/local/bin/fastsell-update"
 DOCKER_CMD=(docker)
 KILL_MY_DATA=false
 
@@ -140,6 +141,13 @@ remove_runtime_root() {
     fi
 }
 
+remove_update_command() {
+    if [ -e "${UPDATE_COMMAND}" ] || [ -L "${UPDATE_COMMAND}" ]; then
+        echo "[OK] Removing ${UPDATE_COMMAND}"
+        as_root rm -f -- "${UPDATE_COMMAND}"
+    fi
+}
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -h|--help)
@@ -166,5 +174,7 @@ if [ "${KILL_MY_DATA}" = true ]; then
 else
     remove_app_runtime_files
 fi
+remove_update_command
+
 echo "[OK] Docker service and firewalld state were left unchanged."
 echo "[OK] FastSell uninstall complete"

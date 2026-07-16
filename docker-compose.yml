@@ -54,7 +54,6 @@ services:
   api:
     image: ${FASTSELL_API_IMAGE:-ghcr.io/bexusflexus/fastsell:api-latest}
     container_name: fastsell_api
-    init: true
     user: "0:0"
     restart: unless-stopped
     env_file:

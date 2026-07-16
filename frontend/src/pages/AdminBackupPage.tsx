@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   createDatabaseBackup,
   createMediaArchive,
   deleteBackup,
   getBackupJob,
   getBackupSettings,
-  getBackupTimezones,
   listBackups,
   restoreBackup,
   saveBackupSettings,
@@ -20,7 +19,6 @@ const pollIntervalMs = 1_500;
 
 export function AdminBackupPage() {
   const [settings, setSettings] = useState<BackupSettings | null>(null);
-  const [timezones, setTimezones] = useState<string[]>([]);
   const [backups, setBackups] = useState<DatabaseBackup[]>([]);
   const [activeJob, setActiveJob] = useState<BackupJob | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,11 +37,10 @@ export function AdminBackupPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const [loadedSettings, loadedBackups, loadedTimezones] = await Promise.all([getBackupSettings(), listBackups(), getBackupTimezones()]);
+        const [loadedSettings, loadedBackups] = await Promise.all([getBackupSettings(), listBackups()]);
         if (mounted) {
           setSettings(loadedSettings);
           setBackups(loadedBackups);
-          setTimezones(loadedTimezones);
         }
       } catch (err) {
         if (mounted) setError(errorMessage(err, 'Failed to load backup configuration.'));
@@ -57,8 +54,6 @@ export function AdminBackupPage() {
       if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
     };
   }, []);
-
-  const timezoneGroups = useMemo(() => groupTimezones(timezones, settings?.timezone), [timezones, settings?.timezone]);
 
   const pollJob = useCallback(async (job: BackupJob) => {
     try {
@@ -190,14 +185,7 @@ export function AdminBackupPage() {
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1 text-sm text-stone-300">Effective timezone (IANA)
-                <select aria-label="Effective timezone" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })} className="rounded border border-rack-steel/30 bg-graphite-950 px-3 py-2">
-                  <option value="UTC">UTC</option>
-                  {timezoneGroups.map(([group, options]) => (
-                    <optgroup key={group} label={group}>
-                      {options.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
+                <input aria-label="Effective timezone" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })} className="rounded border border-rack-steel/30 bg-graphite-950 px-3 py-2" />
               </label>
               <label className="grid gap-1 text-sm text-stone-300">Retention count
                 <input aria-label="Retention count" type="number" min={1} max={365} value={settings.retention_count} onChange={(event) => setSettings({ ...settings, retention_count: Number(event.target.value) })} className="rounded border border-rack-steel/30 bg-graphite-950 px-3 py-2" />
@@ -271,22 +259,6 @@ export function AdminBackupPage() {
       ) : null}
     </div>
   );
-}
-
-function groupTimezones(available: string[], saved?: string): Array<[string, string[]]> {
-  const selectable = new Set(available.filter((timezone) => timezone !== 'UTC'));
-  if (saved && saved !== 'UTC') selectable.add(saved);
-  const groups = new Map<string, string[]>();
-  for (const timezone of selectable) {
-    const separator = timezone.indexOf('/');
-    const group = separator > 0 ? timezone.slice(0, separator) : 'Other';
-    const options = groups.get(group) ?? [];
-    options.push(timezone);
-    groups.set(group, options);
-  }
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([group, options]) => [group, options.sort((left, right) => left.localeCompare(right))]);
 }
 
 function Action({ children, disabled, danger = false, onClick }: { children: ReactNode; disabled: boolean; danger?: boolean; onClick: () => void }) {
