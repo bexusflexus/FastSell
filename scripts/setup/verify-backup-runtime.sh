@@ -25,7 +25,8 @@ done
 
 require_literal docker-compose.yml '/srv/fastsell/backups:/app/backups'
 require_literal docker-compose.yml '/srv/fastsell/db/migrations:/app/migrations:ro'
-require_literal api/Dockerfile 'postgresql16-client tar zstd'
+require_literal docker-compose.yml '    init: true'
+require_literal api/Dockerfile 'postgresql16-client tar tzdata zstd'
 
 if rg -Fq -- '- /srv/fastsell/data:/app/data' "${REPO_ROOT}/docker-compose.yml"; then
     echo "[FAIL] API must use scoped data mounts and must not receive the raw PostgreSQL data root." >&2

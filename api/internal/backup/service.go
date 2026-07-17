@@ -167,45 +167,70 @@ func (s *Service) StartBackup(source string) (Job, error) {
 		release()
 		return Job{}, errors.New("failed to persist backup job state")
 	}
+	snapshot := snapshotJob(job)
+	jobID := snapshot.ID
 	go func() {
 		defer release()
-		s.runBackupJob(context.Background(), &job, true)
+		s.runBackupJob(context.Background(), jobID, true)
 	}()
-	return job, nil
+	return snapshot, nil
 }
 
 func (s *Service) GetJob(id string) (Job, error) { return s.jobs.Get(id) }
 
-func (s *Service) runBackupJob(ctx context.Context, job *Job, retention bool) {
-	now := s.now()
-	job.State = "running"
-	job.Phase = "preparing"
-	job.StartedAt = &now
-	_ = s.jobs.Save(*job)
-	_ = s.settings.RecordAttempt(ctx, now)
+func (s *Service) ListJobs() ([]Job, error) { return s.jobs.List() }
 
-	backupID, err := s.createDatabaseBackup(ctx, job, retention)
-	completed := s.now()
-	job.CompletedAt = &completed
+func (s *Service) updateJob(id string, update func(*Job)) Job {
+	job, err := s.jobs.Update(id, update)
 	if err != nil {
-		job.State = "failed"
-		job.ErrorMessage = sanitizeError(err.Error())
-		_ = s.settings.RecordFailure(ctx, completed, job.ErrorMessage)
-	} else {
-		job.State = "succeeded"
-		job.Phase = "complete"
-		job.BackupID = backupID
-		_ = s.settings.RecordSuccess(ctx, completed)
+		log.Printf("backup job state persistence warning: %s", sanitizeError(err.Error()))
 	}
-	_ = s.jobs.Save(*job)
+	return job
 }
 
-func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyRetention bool) (string, error) {
+func (s *Service) setJobPhase(id, phase string) {
+	s.updateJob(id, func(job *Job) { job.Phase = phase })
+}
+
+func (s *Service) runBackupJob(ctx context.Context, jobID string, retention bool) {
+	now := s.now()
+	s.updateJob(jobID, func(job *Job) {
+		job.State = "running"
+		job.Phase = "preparing"
+		job.StartedAt = &now
+	})
+	_ = s.settings.RecordAttempt(ctx, now)
+
+	backupID, err := s.createDatabaseBackup(ctx, jobID, retention)
+	completed := s.now()
+	if err != nil {
+		message := sanitizeError(err.Error())
+		_ = s.settings.RecordFailure(ctx, completed, message)
+		s.updateJob(jobID, func(job *Job) {
+			job.State = "failed"
+			job.ErrorMessage = message
+			job.CompletedAt = &completed
+		})
+	} else {
+		_ = s.settings.RecordSuccess(ctx, completed)
+		s.updateJob(jobID, func(job *Job) {
+			job.State = "succeeded"
+			job.Phase = "complete"
+			job.BackupID = backupID
+			job.CompletedAt = &completed
+		})
+	}
+}
+
+func (s *Service) createDatabaseBackup(ctx context.Context, jobID string, applyRetention bool) (string, error) {
 	if err := s.CleanupPartials(); err != nil {
 		return "", errors.New("failed to clean incomplete backup files")
 	}
-	job.Phase = "reading database metadata"
-	_ = s.jobs.Save(*job)
+	job, err := s.jobs.Get(jobID)
+	if err != nil {
+		return "", errors.New("failed to load backup job state")
+	}
+	s.setJobPhase(jobID, "reading database metadata")
 	info, err := s.database.Info(ctx)
 	if err != nil {
 		return "", errors.New("failed to read database metadata")
@@ -228,11 +253,10 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 	}
 	defer cleanup()
 
-	job.Phase = "creating database dump"
-	_ = s.jobs.Save(*job)
+	s.setJobPhase(jobID, "creating database dump")
 	args := []string{"--file", dumpPartial, "--format=custom", "--no-owner", "--no-acl"}
 	if err := s.runner.Run(ctx, "pg_dump", args, s.pgEnv); err != nil {
-		return "", errors.New("database dump command failed")
+		return "", fmt.Errorf("database dump command failed: %w", err)
 	}
 	if err := os.Chmod(dumpPartial, 0600); err != nil {
 		return "", errors.New("failed to secure database dump permissions")
@@ -241,10 +265,9 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 		return "", errors.New("failed to flush database dump")
 	}
 
-	job.Phase = "validating database dump"
-	_ = s.jobs.Save(*job)
+	s.setJobPhase(jobID, "validating database dump")
 	if err := s.runner.Run(ctx, "pg_restore", []string{"--list", dumpPartial}, s.pgEnv); err != nil {
-		return "", errors.New("database dump validation failed")
+		return "", fmt.Errorf("database dump validation failed: %w", err)
 	}
 
 	checksum, size, err := fileSHA256(dumpPartial)
@@ -268,8 +291,7 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 		return "", errors.New("failed to write database backup metadata")
 	}
 
-	job.Phase = "publishing database backup"
-	_ = s.jobs.Save(*job)
+	s.setJobPhase(jobID, "publishing database backup")
 	// Publish the dump last. Inventory only recognizes sets whose final dump exists.
 	if err := os.Rename(checksumPartial, checksumFinal); err != nil {
 		return "", errors.New("failed to publish database checksum")
@@ -289,12 +311,10 @@ func (s *Service) createDatabaseBackup(ctx context.Context, job *Job, applyReten
 		_ = os.Remove(metadataFinal)
 		return "", errors.New("failed to flush database backup directory")
 	}
-	job.BackupID = filename
-	_ = s.jobs.Save(*job)
+	s.updateJob(jobID, func(job *Job) { job.BackupID = filename })
 
 	if applyRetention {
-		job.Phase = "applying retention"
-		_ = s.jobs.Save(*job)
+		s.setJobPhase(jobID, "applying retention")
 		settings, settingsErr := s.settings.Get(ctx)
 		if settingsErr != nil {
 			log.Printf("backup retention settings warning: %s", sanitizeError(settingsErr.Error()))
@@ -503,7 +523,7 @@ func (s *Service) preRestoreValidation(ctx context.Context, id string) (Backup, 
 		return Backup{}, Metadata{}, "", errors.New("backup schema is newer than this FastSell installation")
 	}
 	if err := s.runner.Run(ctx, "pg_restore", []string{"--list", path}, s.pgEnv); err != nil {
-		return Backup{}, Metadata{}, "", errors.New("database dump validation failed")
+		return Backup{}, Metadata{}, "", fmt.Errorf("database dump validation failed: %w", err)
 	}
 	return backup, metadata, path, nil
 }

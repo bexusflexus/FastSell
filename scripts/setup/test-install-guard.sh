@@ -68,7 +68,7 @@ expect_refusal() {
         echo "[FAIL] ${name}: refusal message missing" >&2
         exit 1
     }
-    [[ "${output}" == *"sudo fastsell-update"* ]] || {
+    [[ "${output}" == *"sudo ./setup/linux/fastsell-update"* ]] || {
         echo "[FAIL] ${name}: update guidance missing" >&2
         exit 1
     }
@@ -178,7 +178,7 @@ fi
 
 filesystem_guard_line="$(rg -n '^    if fastsell_runtime_has_state ' "${REPO_ROOT}/setup/linux/install.sh" | cut -d: -f1)"
 docker_guard_line="$(rg -n '^    if fastsell_docker_resources_exist' "${REPO_ROOT}/setup/linux/install.sh" | cut -d: -f1)"
-for mutation in prompt_password prepare_runtime_tree write_env_file copy_release_files configure_firewalld install_update_command; do
+for mutation in prompt_password prepare_runtime_tree write_env_file copy_release_files configure_firewalld; do
     mutation_line="$(rg -n "^    ${mutation}([[:space:]]|$)" "${REPO_ROOT}/setup/linux/install.sh" | tail -n 1 | cut -d: -f1)"
     if [ "${filesystem_guard_line}" -ge "${mutation_line}" ] || [ "${docker_guard_line}" -ge "${mutation_line}" ]; then
         echo "[FAIL] install guard does not precede ${mutation}" >&2

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"fastsell-api/internal/config"
+	"fastsell-api/internal/healthprobe"
 	"fastsell-api/internal/models"
 	"fastsell-api/internal/respond"
 
@@ -229,6 +230,12 @@ func (s *AdminSystemStore) buildPathsHealth() models.SystemPathsHealth {
 		}
 		results = append(results, entry)
 	}
+	probePath := filepath.Join(s.cfg.BackupRoot, ".healthcheck")
+	probeEntry := inspectWriteProbePath(probePath)
+	if probeEntry.Status == models.SystemStatusFailed {
+		overall = models.SystemStatusFailed
+	}
+	results = append(results, probeEntry)
 
 	return models.SystemPathsHealth{
 		Status: overall,
@@ -444,7 +451,7 @@ func inspectRequiredPath(path string) models.SystemPathHealth {
 	if readErr := verifyReadableDirectory(path); readErr == nil {
 		entry.Readable = true
 	}
-	if writeErr := verifyWritableDirectoryLocal(path); writeErr == nil {
+	if writeErr := verifyWritableDirectoryAccess(path); writeErr == nil {
 		entry.Writable = true
 	}
 
@@ -458,6 +465,23 @@ func inspectRequiredPath(path string) models.SystemPathHealth {
 		entry.Message = "Directory is available."
 	}
 
+	return entry
+}
+
+func inspectWriteProbePath(path string) models.SystemPathHealth {
+	entry := inspectRequiredPath(path)
+	if !entry.Exists || !entry.IsDirectory || !entry.Readable {
+		return entry
+	}
+	if err := healthprobe.WritableDirectory(path); err != nil {
+		entry.Writable = false
+		entry.Status = models.SystemStatusFailed
+		entry.Message = "Dedicated health-check directory is not writable."
+		return entry
+	}
+	entry.Writable = true
+	entry.Status = models.SystemStatusOK
+	entry.Message = "Dedicated health-check directory is available."
 	return entry
 }
 
@@ -475,19 +499,9 @@ func verifyReadableDirectory(dir string) error {
 	return err
 }
 
-func verifyWritableDirectoryLocal(dir string) error {
-	file, err := os.CreateTemp(dir, ".write-check-*")
-	if err != nil {
-		return err
-	}
-
-	name := file.Name()
-	if err := file.Close(); err != nil {
-		_ = os.Remove(name)
-		return err
-	}
-
-	return os.Remove(name)
+func verifyWritableDirectoryAccess(dir string) error {
+	const writeAndSearchAccess = 3
+	return syscall.Access(dir, writeAndSearchAccess)
 }
 
 func deriveOverallStatus(statuses ...models.SystemHealthStatus) models.SystemHealthStatus {

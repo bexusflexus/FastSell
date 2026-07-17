@@ -15,6 +15,7 @@ import (
 	"fastsell-api/internal/config"
 	"fastsell-api/internal/db"
 	"fastsell-api/internal/handlers"
+	"fastsell-api/internal/healthprobe"
 	"fastsell-api/internal/httpapi"
 	"fastsell-api/internal/intakeworker"
 )
@@ -50,9 +51,19 @@ func main() {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			log.Fatalf("failed to prepare directory %s: %v", filepath.Clean(dir), err)
 		}
-		if err := verifyWritableDirectory(dir); err != nil {
-			log.Fatalf("directory is not writable %s: %v", filepath.Clean(dir), err)
+		if err := verifyAccessibleDirectory(dir); err != nil {
+			log.Fatalf("directory is not accessible %s: %v", filepath.Clean(dir), err)
 		}
+	}
+	healthcheckDir := filepath.Join(cfg.BackupRoot, ".healthcheck")
+	if err := os.MkdirAll(healthcheckDir, 0700); err != nil {
+		log.Fatalf("failed to prepare health-check directory: %v", err)
+	}
+	if err := os.Chmod(healthcheckDir, 0700); err != nil {
+		log.Fatalf("failed to secure health-check directory: %v", err)
+	}
+	if err := healthprobe.WritableDirectory(healthcheckDir); err != nil {
+		log.Fatalf("health-check directory is not writable: %v", err)
 	}
 
 	pool, err := db.NewPool(context.Background(), cfg.DatabaseURL)
@@ -268,17 +279,14 @@ func main() {
 	}
 }
 
-func verifyWritableDirectory(dir string) error {
-	file, err := os.CreateTemp(dir, ".write-check-*")
+func verifyAccessibleDirectory(dir string) error {
+	handle, err := os.Open(dir)
 	if err != nil {
 		return err
 	}
-
-	name := file.Name()
-	if err := file.Close(); err != nil {
-		_ = os.Remove(name)
+	if err := handle.Close(); err != nil {
 		return err
 	}
-
-	return os.Remove(name)
+	const writeAndSearchAccess = 3
+	return syscall.Access(dir, writeAndSearchAccess)
 }
