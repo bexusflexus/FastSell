@@ -165,7 +165,7 @@ check_auth_and_repository() {
         fail "Origin must be a recognized GitHub repository remote."
     fi
     OWNER="${REPOSITORY%%/*}"
-    if ! resolved="$(gh repo view --repo "${REPOSITORY}" --json nameWithOwner --jq .nameWithOwner 2>&1)"; then
+    if ! resolved="$(gh repo view "${REPOSITORY}" --json nameWithOwner --jq .nameWithOwner 2>&1)"; then
         fail "Could not resolve GitHub repository ${REPOSITORY}: ${resolved}"
     fi
     [ "${resolved,,}" = "${REPOSITORY,,}" ] || fail "GitHub repository ${resolved} does not match origin ${REPOSITORY}."

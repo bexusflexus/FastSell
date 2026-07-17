@@ -188,7 +188,9 @@ case "${1:-} ${2:-}" in
         [ ! -f "${MOCK_GH_STATE}/fail_auth" ] || exit 1
         ;;
     "repo view")
-        require_pair --repo testowner/testrepo "$@"
+        [ "$#" -eq 7 ] || die "unexpected repo view arguments"
+        has_arg --repo "$@" && die "repo view does not support --repo"
+        [ "${3:-}" = testowner/testrepo ] || die "repository must be the positional repo view argument"
         require_pair --json nameWithOwner "$@"
         require_pair --jq .nameWithOwner "$@"
         echo testowner/testrepo
@@ -625,6 +627,17 @@ test_mock_rejects_incomplete_commands() {
     output="$(
         cd "${WORK}" &&
         PATH="${MOCK_BIN}:${PATH}" MOCK_GH_STATE="${STATE}" MOCK_ORIGIN="${ORIGIN}" MOCK_REAL_GIT="${REAL_GIT}" \
+            gh repo view --repo testowner/testrepo --json nameWithOwner --jq .nameWithOwner 2>&1
+    )"
+    status="$?"
+    set -e
+    [ "${status}" -ne 0 ] || fail "mock accepted unsupported gh repo view --repo form"
+    [[ "${output}" == *"repo view"* ]] || fail "mock did not reject unsupported repo view arguments"
+
+    set +e
+    output="$(
+        cd "${WORK}" &&
+        PATH="${MOCK_BIN}:${PATH}" MOCK_GH_STATE="${STATE}" MOCK_ORIGIN="${ORIGIN}" MOCK_REAL_GIT="${REAL_GIT}" \
             gh pr list --head "${branch}" --base main --state all --limit 100 \
             --json "number,state,isDraft,baseRefName,baseRefOid,headRefName,headRefOid,headRepositoryOwner,isCrossRepository,mergeCommit" 2>&1
     )"
@@ -656,7 +669,7 @@ test_mock_rejects_incomplete_commands() {
     set -e
     [ "${status}" -ne 0 ] || fail "mock accepted merge without --match-head-commit"
     [[ "${output}" == *"missing --match-head-commit"* ]] || fail "mock did not require head binding"
-    echo "[OK] gh mock rejects missing repository context, JSON-watch fallback, and unbound merge"
+    echo "[OK] gh mock rejects repo view --repo, missing PR context, JSON-watch fallback, and unbound merge"
 }
 
 test_clean_and_idempotent

@@ -149,7 +149,7 @@ main() {
     if ! gh auth status >/dev/null 2>&1; then fail "GitHub CLI is not authenticated."; fi
     if ! REPOSITORY="$(release_origin_repository)"; then fail "Origin must be a recognized GitHub repository remote."; fi
     OWNER="${REPOSITORY%%/*}"
-    if ! resolved_repository="$(gh repo view --repo "${REPOSITORY}" --json nameWithOwner --jq .nameWithOwner 2>&1)"; then
+    if ! resolved_repository="$(gh repo view "${REPOSITORY}" --json nameWithOwner --jq .nameWithOwner 2>&1)"; then
         fail "Could not resolve GitHub repository ${REPOSITORY}: ${resolved_repository}"
     fi
     [ "${resolved_repository,,}" = "${REPOSITORY,,}" ] || fail "GitHub repository ${resolved_repository} does not match origin ${REPOSITORY}."
